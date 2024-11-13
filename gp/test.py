@@ -27,6 +27,11 @@ class GPTest:
         print_line()
         self.test_shrink_mutation()
         print_line()
+        self.test_generate_initial_population_grow()
+        print_line()
+        self.test_generate_initial_population_full()
+        print_line()
+        self.test_generate_initial_population_half_and_half()
 
     def test_evaluate_fitness(self):
         pass
@@ -51,8 +56,6 @@ class GPTest:
 
         print("\nChild tree")
         print_tree(child.root_node)
-
-
 
         print("\nAfter crossover:")
         print("Child:", child.show_prefix())
@@ -107,3 +110,24 @@ class GPTest:
             print(f"Tree {i + 1}:")
             print("Prefix notation:", gene.show_prefix())
             print("Infix notation:", gene.show_infix())
+
+    def test_generate_initial_population_grow(self):
+        self._test_generate_initial_population("grow")
+
+    def test_generate_initial_population_full(self):
+        self._test_generate_initial_population("full")
+
+    def test_generate_initial_population_half_and_half(self):
+        self._test_generate_initial_population("half_and_half")
+
+    def _test_generate_initial_population(self, strategy):
+        print("Generating initial population with strategy: ", strategy)
+
+        population = generate_initial_population(POPULATION_SIZE, strategy)
+
+        for i, gene in enumerate(population):
+            print(f"Gene {i + 1}:")
+            print("Prefix notation:", gene.show_prefix())
+            print("Infix notation:", gene.show_infix())
+            print("Tree:\n")
+            print_tree(gene.root_node)
