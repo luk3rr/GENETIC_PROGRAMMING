@@ -4,14 +4,42 @@
 # Created on: November 12, 2024
 # Author: Lucas Araújo <araujolucas@dcc.ufmg.br>
 
-from colorama import Fore, Style
+import csv
+from typing import Tuple
 
-from .parameters import NON_TERMINAL
+from colorama import Fore, Style
+from typing import List
+
+from .parameters import DIMENSION, NON_TERMINAL
 
 
 def print_line():
     print("-" * 80)
 
+def read_data_from_csv(file_path) -> List[Tuple[int, list]]:
+    """
+    Reads the data from a CSV file
+
+    Each tuple has the label and the list of features
+    NOTE: The last column of the CSV file must be the label
+
+    @param file_path: The path to the CSV file
+    @return: A list with the data
+    """
+    data = []
+
+    with open(file_path, mode='r') as csvfile:
+        csv_reader = csv.reader(csvfile)
+
+        # Ignore the header
+        next(csv_reader)
+
+        for row in csv_reader:
+            values = [float(value) for value in row[:DIMENSION]]
+            label = int(row[DIMENSION])
+            data.append((label, values))
+
+    return data
 
 def are_trees_equal(node1, node2):
     """

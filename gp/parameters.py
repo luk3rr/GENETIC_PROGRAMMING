@@ -6,9 +6,13 @@
 
 import random
 
+BREAST_CANCER_TEST_DATASET = "data/breast_cancer_coimbra_test.csv"
+BREAST_CANCER_TRAIN_DATASET = "data/breast_cancer_coimbra_train.csv"
+
 SEED = random.randint(0, 1000)
 
 TREE_MAX_DEPTH = 7
+DIMENSION = 9
 
 NON_TERMINAL = ["+", "-", "*", "/"]
 TERMINAL = [

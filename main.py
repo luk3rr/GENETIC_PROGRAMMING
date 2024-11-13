@@ -12,12 +12,16 @@ from gp.test import *
 
 
 def main():
-    random.seed(SEED)
+    bct_test = read_data_from_csv(BREAST_CANCER_TEST_DATASET)
 
-    gptest = GPTest()
+    bct_train = read_data_from_csv(BREAST_CANCER_TRAIN_DATASET)
 
-    gptest.test_all()
+    # print all the data
+    print("Test data:")
+    print(bct_test)
 
+    print("\nTrain data:")
+    print(bct_train)
 
 if __name__ == "__main__":
     main()

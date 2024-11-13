@@ -4,7 +4,9 @@
 # Created on: November 12, 2024
 # Author: Lucas Araújo <araujolucas@dcc.ufmg.br>
 
+from gp.parameters import DIMENSION
 from .utils import are_trees_equal
+
 
 class Node:
     def __init__(self, value, depth, left=None, right=None):
@@ -26,6 +28,7 @@ class Node:
 
     def get_depth(self):
         return self.depth
+
 
 class Gene:
     def __init__(self, tree):
@@ -63,16 +66,52 @@ class Gene:
         Helper method to calculate the height of a subtree
         """
         if node is None:
-            return -1  # Considera altura -1 para subárvores vazias
+            return -1  # Height of an empty tree is -1
 
         left_height = self._calculate_height(node.left)
         right_height = self._calculate_height(node.right)
 
         return 1 + max(left_height, right_height)
 
-    def evaluate(self, ei, ej):
-        """"""
-        pass
+    def evaluate(self, xs, ys):
+        """
+        Evaluate the gene using the input values
+
+        @param xs: The input values for the x variable
+        @param ys: The input values for the y variable
+        """
+
+        assert (
+            len(xs) == len(ys) == DIMENSION
+        ), "The input values must have the same dimension"
+
+        output_xs = self._evaluate(self.root_node, xs, "x")
+        output_ys = self._evaluate(self.root_node, ys, "y")
+
+        return abs(output_xs - output_ys)
+
+    def _evaluate(self, node, values, prefix):
+        if node.is_leaf():
+            if node.value.startswith(prefix):
+                return values[int(node.value[1:])]
+
+            else:
+                return int(node.value)
+
+        left = self._evaluate(node.left, values, prefix)
+        right = self._evaluate(node.right, values, prefix)
+
+        if node.value == "+":
+            return left + right
+        elif node.value == "-":
+            return left - right
+        elif node.value == "*":
+            return left * right
+        elif node.value == "/":
+            # Protected division
+            return left / right if right != 0 else left
+        else:
+            raise ValueError(f"Invalid operator: {node.value}")
 
     def show_prefix(self):
         """
