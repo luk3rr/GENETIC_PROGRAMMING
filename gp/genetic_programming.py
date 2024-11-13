@@ -7,6 +7,8 @@
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import v_measure_score
 
+from .population import *
+
 def genetic_programming(X, y_true, population_size, generations):
     population = generate_initial_population(population_size)
     
