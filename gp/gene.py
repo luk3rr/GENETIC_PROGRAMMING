@@ -29,6 +29,11 @@ class Node:
         self.right = right
         self.depth = depth
 
+    def __hash__(self):
+        left_hash = hash(self.left) if self.left else 0
+        right_hash = hash(self.right) if self.right else 0
+        return hash((self.value, left_hash, right_hash))
+
     def is_leaf(self):
         return self.left is None and self.right is None
 
@@ -65,8 +70,17 @@ class Gene:
     def __lt__(self, other):
         return self.fitness < other.fitness
 
+    def __le__(self, other):
+        return self.fitness <= other.fitness
+
+    def __ge__(self, other):
+        return self.fitness >= other.fitness
+
     def __gt__(self, other):
         return self.fitness > other.fitness
+
+    def __hash__(self):
+        return hash(self.root_node) ^ hash(self.height)
 
     def calculate_tree_height(self):
         """

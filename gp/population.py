@@ -157,22 +157,29 @@ def generate_initial_population(population_size, strategy) -> List[Gene]:
         ]
 
     elif strategy == "half_and_half":
-        # For each depth, half the population will be generated with the grow
-        # strategy and the other half with the full strategy
         genes_per_depth = population_size // TREE_MAX_DEPTH
-
+        remainder = population_size % TREE_MAX_DEPTH
         population = []
 
-        for depth in range(1, TREE_MAX_DEPTH):
+        # Generate genes at each depth alternating between the grow and full strategies
+        for depth in range(1, TREE_MAX_DEPTH + 1):
+            grow_genes = genes_per_depth // 2
+            full_genes = genes_per_depth - grow_genes
+
+            # Add the remainder to the last depth to ensure the correct population size
+            if depth == TREE_MAX_DEPTH:
+                full_genes += remainder
+
             population += [
-                Gene(generate_random_tree(depth, grow))
-                for _ in range(genes_per_depth // 2)
-            ] + [
-                Gene(generate_random_tree(depth, full))
-                for _ in range(genes_per_depth // 2)
-            ]
+                Gene(generate_random_tree(depth, grow)) for _ in range(grow_genes)
+            ] + [Gene(generate_random_tree(depth, full)) for _ in range(full_genes)]
+
+        # Ensure that the population has the correct size
+        if len(population) > population_size:
+            population = population[:population_size]
 
         return population
+
     else:
         raise ValueError("Invalid strategy")
 
@@ -200,3 +207,24 @@ def selection_tournament(
         return max(tournament, key=lambda gene: gene.fitness)
     else:
         raise ValueError("Invalid problem type")
+
+
+def count_duplicated_genes(population) -> Tuple[int, List[int]]:
+    """
+    Count the number of duplicated genes in the population
+
+    @param population: The population to count the duplicated genes
+    @return: The number of duplicated genes and the indexes of the duplicated genes
+    """
+    unique_genes = set()
+    duplicated_genes = 0
+    duplicated_indexes = []
+
+    for gene in population:
+        if gene in unique_genes:
+            duplicated_indexes.append(population.index(gene))
+            duplicated_genes += 1
+        else:
+            unique_genes.add(gene)
+
+    return duplicated_genes, duplicated_indexes

@@ -4,13 +4,22 @@
 # Created on: November 12, 2024
 # Author: Lucas Araújo <araujolucas@dcc.ufmg.br>
 
-BREAST_CANCER_TEST_DATASET = "data/breast_cancer_coimbra_test.csv"
-BREAST_CANCER_TRAIN_DATASET = "data/breast_cancer_coimbra_train.csv"
-
 SEED = 42
 
 TREE_MAX_DEPTH = 7
 DIMENSION = 9
+
+NON_TERMINAL_PROB = 0.5
+TERMINAL_PROB = 1 - NON_TERMINAL_PROB
+
+POPULATION_SIZE = 200
+NUM_GENERATIONS = 50
+
+CROSSOVER_PROB = 0.9
+MUTATION_PROB = 0.05
+
+TOURNAMENT_SIZE = 5
+ELITISM_SIZE = round(POPULATION_SIZE * 0.1)
 
 NON_TERMINAL = ["+", "-", "*", "/"]
 TERMINAL = [
@@ -35,14 +44,10 @@ TERMINAL = [
     "10",
 ]
 
-NON_TERMINAL_PROB = 0.5
-TERMINAL_PROB = 1 - NON_TERMINAL_PROB
+DATA_FOLDER = "data/"
+LOG_FOLDER = "log/"
 
-POPULATION_SIZE = 1000
-NUM_GENERATIONS = 500
+BREAST_CANCER_TEST_DATASET = DATA_FOLDER + "breast_cancer_coimbra_test.csv"
+BREAST_CANCER_TRAIN_DATASET = DATA_FOLDER + "breast_cancer_coimbra_train.csv"
 
-CROSSOVER_PROB = 0.9
-MUTATION_PROB = 0.05
-
-TOURNAMENT_SIZE = 5
-ELITISM_SIZE = round(POPULATION_SIZE * 0.1)
+LOG_PREFIX = "sim"
