@@ -16,6 +16,7 @@ from .parameters import DIMENSION, NON_TERMINAL
 def print_line():
     print("-" * 80)
 
+
 def read_data_from_csv(file_path) -> List[Tuple[int, list]]:
     """
     Reads the data from a CSV file
@@ -28,7 +29,7 @@ def read_data_from_csv(file_path) -> List[Tuple[int, list]]:
     """
     data = []
 
-    with open(file_path, mode='r') as csvfile:
+    with open(file_path, mode="r") as csvfile:
         csv_reader = csv.reader(csvfile)
 
         # Ignore the header
@@ -40,6 +41,7 @@ def read_data_from_csv(file_path) -> List[Tuple[int, list]]:
             data.append((label, values))
 
     return data
+
 
 def are_trees_equal(node1, node2):
     """
@@ -80,7 +82,6 @@ def print_tree(node, indent="", last="updown"):
         print_tree(
             node.right, indent + ("     " if last == "up" else "|    "), next_last
         )
-
 
     color = Fore.RED if node.value in NON_TERMINAL else Fore.GREEN
 

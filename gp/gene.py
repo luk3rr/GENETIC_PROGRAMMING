@@ -4,8 +4,14 @@
 # Created on: November 12, 2024
 # Author: Lucas Araújo <araujolucas@dcc.ufmg.br>
 
-from gp.parameters import DIMENSION
-from .utils import are_trees_equal
+import numpy as np
+
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.metrics import v_measure_score
+from typing import List, Tuple
+
+from .parameters import DIMENSION
+from .utils import *
 
 
 class Node:
@@ -33,7 +39,8 @@ class Node:
 class Gene:
     def __init__(self, tree):
         self.root_node = tree
-        self.height = self._calculate_height(self.root_node)
+        self.height = self._calculate_tree_height(self.root_node)
+        self.fitness = None
 
     def __eq__(self, other):
         """
@@ -55,42 +62,91 @@ class Gene:
         """
         return not self.__eq__(other)
 
-    def recalculate_height(self):
+    def __lt__(self, other):
+        return self.fitness < other.fitness
+
+    def __gt__(self, other):
+        return self.fitness > other.fitness
+
+    def calculate_tree_height(self):
         """
         Recalculate and update the height of the entire tree
         """
-        self.height = self._calculate_height(self.root_node)
+        self.height = self._calculate_tree_height(self.root_node)
 
-    def _calculate_height(self, node):
+    def _calculate_tree_height(self, node):
         """
         Helper method to calculate the height of a subtree
         """
         if node is None:
             return -1  # Height of an empty tree is -1
 
-        left_height = self._calculate_height(node.left)
-        right_height = self._calculate_height(node.right)
+        left_height = self._calculate_tree_height(node.left)
+        right_height = self._calculate_tree_height(node.right)
 
         return 1 + max(left_height, right_height)
 
-    def evaluate(self, xs, ys):
+    def evaluate_fitness(self, data, true_labels):
+        """
+        Evaluate the fitness of the gene
+
+        @param gene: The gene to evaluate
+        @param data: The data to evaluate
+        @param true_labels: The true labels of the data
+        @return: The fitness of the gene
+        """
+        distance_matrix = self.get_distance_matrix(data)
+        clustering = AgglomerativeClustering(
+            n_clusters=len(set(true_labels)), metric="precomputed", linkage="average"
+        )
+
+        self.fitness = v_measure_score(
+            true_labels, clustering.fit_predict(distance_matrix)
+        )
+
+    def get_distance_matrix(self, data) -> np.ndarray:
+        """
+        Create a distance matrix for the data using the gene's evaluate function
+
+        @param data: The data to make the distance matrix, as a list of tuples (label, features)
+        @return: The distance matrix as a NumPy array
+        """
+        num_data_points = len(data)
+        distance_matrix = np.zeros((num_data_points, num_data_points))
+
+        for x in range(num_data_points):
+            features_x = data[x]
+
+            for y in range(x + 1, num_data_points):
+                features_y = data[y]
+
+                distance = self.evaluate_function(features_x, features_y)
+
+                # Matrix is symmetric, so we can fill both values at once
+                distance_matrix[x, y] = distance
+                distance_matrix[y, x] = distance
+
+        return distance_matrix
+
+    def evaluate_function(self, ei, ej):
         """
         Evaluate the gene using the input values
 
-        @param xs: The input values for the x variable
-        @param ys: The input values for the y variable
+        @param ei: The first input values
+        @param ej: The second input values
         """
 
         assert (
-            len(xs) == len(ys) == DIMENSION
+            len(ei) == len(ej) == DIMENSION
         ), "The input values must have the same dimension"
 
-        output_xs = self._evaluate(self.root_node, xs, "x")
-        output_ys = self._evaluate(self.root_node, ys, "y")
+        ei = np.array(ei)
+        ej = np.array(ej)
+        xs = ei - ej
 
-        return abs(output_xs - output_ys)
+        return self._evaluate_function(self.root_node, xs)
 
-    def _evaluate(self, node, values, prefix):
+    def _evaluate_function(self, node, values, prefix="x"):
         if node.is_leaf():
             if node.value.startswith(prefix):
                 return values[int(node.value[1:])]
@@ -98,8 +154,8 @@ class Gene:
             else:
                 return int(node.value)
 
-        left = self._evaluate(node.left, values, prefix)
-        right = self._evaluate(node.right, values, prefix)
+        left = self._evaluate_function(node.left, values, prefix)
+        right = self._evaluate_function(node.right, values, prefix)
 
         if node.value == "+":
             return left + right
@@ -109,7 +165,7 @@ class Gene:
             return left * right
         elif node.value == "/":
             # Protected division
-            return left / right if right != 0 else left
+            return left / right if right != 0 else left / 1e-10
         else:
             raise ValueError(f"Invalid operator: {node.value}")
 

@@ -11,65 +11,7 @@ from copy import deepcopy
 from .gene import *
 from .parameters import *
 from .population import *
-
-
-def get_leaf_nodes(node, nodes):
-    """
-    Get all leaf nodes in the tree
-
-    @param node: The current node
-    @param nodes: The list of leaf nodes
-    """
-    if node.is_leaf():
-        nodes.append(node)
-        return
-
-    if node.left:
-        get_leaf_nodes(node.left, nodes)
-
-    if node.right:
-        get_leaf_nodes(node.right, nodes)
-
-
-def bfs(node, depth, max_depth, nodes):
-    """
-    Breadth-first search in the tree
-
-    @param node: The current node
-    @param depth: The current depth
-    @param max_depth: The maximum depth
-    @param nodes: The list of nodes with the given depth
-    """
-    if depth == max_depth:
-        nodes.append(node)
-        return
-
-    if node.left:
-        bfs(node.left, depth + 1, max_depth, nodes)
-
-    if node.right:
-        bfs(node.right, depth + 1, max_depth, nodes)
-
-
-def select_random_subtree(gene, depth=None) -> Node:
-    """
-    Select a random subtree from the given node
-
-    @param node: The node to select the subtree
-    @param depth: The depth of the nodes that will be selected.
-                  If None, all nodes are eligible
-                  Note: Used to prevent broating
-    """
-    nodes = []
-    nodes.append(gene.root_node)
-
-    if depth is None:
-        depth = gene.root_node.get_depth()
-
-    bfs(gene.root_node, 0, depth, nodes)
-
-    return random.choice(nodes)
-
+from .utils import *
 
 def crossover(parent1, parent2) -> Gene:
     """
@@ -99,7 +41,7 @@ def crossover(parent1, parent2) -> Gene:
     subtree_child.left = subtree_parent.left
     subtree_child.right = subtree_parent.right
 
-    child_base.recalculate_height()
+    child_base.calculate_tree_height()
 
     return child_base
 
@@ -165,4 +107,13 @@ def mutate(gene, strategy=one_point_mutation):
     @param strategy: The mutation strategy
     """
     strategy(gene)
-    gene.recalculate_height()
+    gene.calculate_tree_height()
+
+def mutate_random_strategy(gene):
+    """
+    Mutate a gene with a random mutation strategy
+
+    @param gene: The gene to mutate
+    """
+    strategy = random.choice([one_point_mutation, expand_mutation, shrink_mutation])
+    mutate(gene, strategy)

@@ -8,8 +8,66 @@ import random
 
 from typing import List
 
-from .gene import *
 from .parameters import *
+from .gene import *
+
+
+def get_leaf_nodes(node, nodes):
+    """
+    Get all leaf nodes in the tree
+
+    @param node: The current node
+    @param nodes: The list of leaf nodes
+    """
+    if node.is_leaf():
+        nodes.append(node)
+        return
+
+    if node.left:
+        get_leaf_nodes(node.left, nodes)
+
+    if node.right:
+        get_leaf_nodes(node.right, nodes)
+
+
+def bfs(node, depth, max_depth, nodes):
+    """
+    Breadth-first search in the tree
+
+    @param node: The current node
+    @param depth: The current depth
+    @param max_depth: The maximum depth
+    @param nodes: The list of nodes with the given depth
+    """
+    if depth == max_depth:
+        nodes.append(node)
+        return
+
+    if node.left:
+        bfs(node.left, depth + 1, max_depth, nodes)
+
+    if node.right:
+        bfs(node.right, depth + 1, max_depth, nodes)
+
+
+def select_random_subtree(gene, depth=None) -> Node:
+    """
+    Select a random subtree from the given node
+
+    @param node: The node to select the subtree
+    @param depth: The depth of the nodes that will be selected.
+                  If None, all nodes are eligible
+                  Note: Used to prevent broating
+    """
+    nodes = []
+    nodes.append(gene.root_node)
+
+    if depth is None:
+        depth = gene.root_node.get_depth()
+
+    bfs(gene.root_node, 0, depth, nodes)
+
+    return random.choice(nodes)
 
 
 def grow(depth) -> Node:
@@ -99,6 +157,8 @@ def generate_initial_population(population_size, strategy) -> List[Gene]:
         ]
 
     elif strategy == "half_and_half":
+        # For each depth, half the population will be generated with the grow
+        # strategy and the other half with the full strategy
         genes_per_depth = population_size // TREE_MAX_DEPTH
 
         population = []
@@ -115,3 +175,28 @@ def generate_initial_population(population_size, strategy) -> List[Gene]:
         return population
     else:
         raise ValueError("Invalid strategy")
+
+
+def selection_tournament(
+    population,
+    tournament_size=TOURNAMENT_SIZE,
+    problem_type="max",
+) -> Gene:
+    """
+    Perform the tournament selection and return a list of selected genes
+
+    @param population: The population to select from
+    @param tournament_size: The size of the tournament
+    @param problem_type: The type of problem, minimization or maximization ("min" or "max")
+    @return: The best gene selected
+    NOTE: Ensure that the fitnesses of the genes are updated before calling this function
+    """
+    # Random selection of the subset of genes for the tournament
+    tournament = random.sample(population, tournament_size)
+
+    if problem_type == "min":
+        return min(tournament, key=lambda gene: gene.fitness)
+    elif problem_type == "max":
+        return max(tournament, key=lambda gene: gene.fitness)
+    else:
+        raise ValueError("Invalid problem type")
