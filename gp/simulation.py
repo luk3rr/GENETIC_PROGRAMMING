@@ -4,10 +4,12 @@
 # Created on: November 13, 2024
 # Author: Lucas Araújo <araujolucas@dcc.ufmg.br>
 
+import json
 import heapq
 import time
 import logging
 import numpy as np
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 from concurrent.futures import ProcessPoolExecutor
 from typing import List, Tuple
@@ -15,51 +17,93 @@ from datetime import datetime
 
 from .gene import Gene
 from .operators import generate_child
+
 from .parameters import (
-    CROSSOVERS_BY_GENERATION,
-    LOG_FOLDER,
-    LOG_PREFIX,
-    BREAST_CANCER_TRAIN_DATASET,
+    TREE_MAX_DEPTH,
+    TREE_MIN_DEPTH,
+    DATA_DIMENSION,
+    NON_TERMINAL_PROB,
+    TERMINAL_PROB,
     POPULATION_SIZE,
+    CROSSOVERS_BY_GENERATION,
     NUM_GENERATIONS,
     CROSSOVER_PROB,
     MUTATION_PROB,
+    TOURNAMENT_SIZE,
     ELITISM_SIZE,
-    THREAD_INITIAL_SEED,
-    TREE_MAX_DEPTH,
-    TREE_MIN_DEPTH,
+    NORMALIZATION_METHOD,
+    NON_TERMINAL,
+    TERMINAL,
+    NormalizationMethod,
 )
+
+from .constants import (
+    BREAST_CANCER_TEST_DATASET,
+    BREAST_CANCER_TRAIN_DATASET,
+    LOG_FOLDER,
+    LOG_FILE_SUFFIX,
+    REPRODUCIBILITY_FILE_SUFFIX,
+)
+
 from .population import (
     generate_initial_population,
     count_duplicated_genes,
     evaluate_fitness,
 )
-from .utils import print_tree, read_data_from_csv, print_line
+from .utils import read_data_from_csv, print_line
 
 
 class Simulation:
-    def __init__(self):
+    def __init__(
+        self,
+        seed=np.random.randint(0, 2**32 - 1),
+        thread_initial_seed=np.random.randint(0, 2**32 - 1),
+    ):
         self.data = None
         self.true_labels = None
+        self.seed = seed
+        self.thread_initial_seed = thread_initial_seed
+
+        np.random.seed(self.seed) # Seed the random number generator
 
         now = datetime.now()
 
-        log_filename = (
-            f"{LOG_FOLDER}{LOG_PREFIX}_{now.strftime('%Y-%m-%d_%H-%M-%S')}.log"
+        self.log_filename = (
+            f"{LOG_FOLDER}{now.strftime('%Y-%m-%d_%H-%M-%S')}_{LOG_FILE_SUFFIX}.log"
         )
 
+        self.json_filename = f"{LOG_FOLDER}{now.strftime('%Y-%m-%d_%H-%M-%S')}_{REPRODUCIBILITY_FILE_SUFFIX}.json"
+
         logging.basicConfig(
-            filename=log_filename,
+            filename=self.log_filename,
             level=logging.INFO,
             format="%(asctime)s - %(levelname)s - %(message)s",
         )
         self.logger = logging.getLogger()
+
+    def _write_log(self, message, level=logging.INFO, print_message=True):
+        self.logger.log(level, message)
+
+        if print_message:
+            print(message)
 
     def _load_data(self):
         labeled_data = read_data_from_csv(BREAST_CANCER_TRAIN_DATASET)
 
         self.true_labels = [label for label, _ in labeled_data]
         self.data = [features for _, features in labeled_data]
+
+        match NORMALIZATION_METHOD:
+            case NormalizationMethod.MIN_MAX:
+                scaler = MinMaxScaler()
+                self.data = scaler.fit_transform(self.data)
+
+            case NormalizationMethod.STANDARD:
+                scaler = StandardScaler()
+                self.data = scaler.fit_transform(self.data)
+
+            case _:
+                raise ValueError("Invalid normalization method")
 
     def evaluate_generation(self, population):
         """
@@ -71,19 +115,12 @@ class Simulation:
         best_gene = max(population)
         worst_gene = min(population)
 
-        self.logger.info(f"Stats:")
-        self.logger.info(f"\tBest:   {best_gene.fitness}")
-        self.logger.info(f"\tWorst:  {worst_gene.fitness}")
-        self.logger.info(f"\tMean:   {mean_fitness}")
-        self.logger.info(f"\tMedian: {median_fitness}")
-        self.logger.info(f"\tStd:    {std_fitness}")
-
-        print(f"Stats:")
-        print(f"\tBest:   {best_gene.fitness}")
-        print(f"\tWorst:  {worst_gene.fitness}")
-        print(f"\tMean:   {mean_fitness}")
-        print(f"\tMedian: {median_fitness}")
-        print(f"\tStd:    {std_fitness}")
+        self._write_log(f"Stats:")
+        self._write_log(f"\tBest:   {best_gene.fitness}")
+        self._write_log(f"\tWorst:  {worst_gene.fitness}")
+        self._write_log(f"\tMean:   {mean_fitness}")
+        self._write_log(f"\tMedian: {median_fitness}")
+        self._write_log(f"\tStd:    {std_fitness}")
 
     def handle_duplicate_genes(self, population):
         """
@@ -118,7 +155,7 @@ class Simulation:
 
             total_replaced_genes += duplicated_genes
 
-        print(f"Replaced {total_replaced_genes} duplicated genes")
+        self._write_log(f"Replaced {total_replaced_genes} duplicated genes")
 
         return total_replaced_genes
 
@@ -146,8 +183,10 @@ class Simulation:
         self,
         population,
         seed_sequence,
+        total_possible_crossovers,
+        cross_prob,
+        mut_prob,
         workers=None,
-        total_possible_crossovers=CROSSOVERS_BY_GENERATION,
     ) -> Tuple[List[Tuple[Gene, Tuple[Gene, Gene]]], int]:
         """
         Generates the next generation of a given population in parallel.
@@ -172,8 +211,8 @@ class Simulation:
                         population,
                         self.data,
                         self.true_labels,
-                        CROSSOVER_PROB,
-                        MUTATION_PROB,
+                        cross_prob,
+                        mut_prob,
                         seed_sequence,
                     )
                 )
@@ -184,6 +223,35 @@ class Simulation:
             )
 
         return childs, seed_sequence
+
+    def save_simulation_parameters(self):
+        """
+        Save the simulation parameters to the json file
+        """
+        data_to_save = {
+            "SEED": self.seed,
+            "THREAD_INITIAL_SEED": self.thread_initial_seed,
+            "TREE_MAX_DEPTH": TREE_MAX_DEPTH,
+            "TREE_MIN_DEPTH": TREE_MIN_DEPTH,
+            "DATA_DIMENSION": DATA_DIMENSION,
+            "NON_TERMINAL_PROB": NON_TERMINAL_PROB,
+            "TERMINAL_PROB": TERMINAL_PROB,
+            "POPULATION_SIZE": POPULATION_SIZE,
+            "CROSSOVERS_BY_GENERATION": CROSSOVERS_BY_GENERATION,
+            "NUM_GENERATIONS": NUM_GENERATIONS,
+            "CROSSOVER_PROB": CROSSOVER_PROB,
+            "MUTATION_PROB": MUTATION_PROB,
+            "TOURNAMENT_SIZE": TOURNAMENT_SIZE,
+            "ELITISM_SIZE": ELITISM_SIZE,
+            "NORMALIZATION_METHOD": str(NORMALIZATION_METHOD),
+            "NON_TERMINAL": NON_TERMINAL,
+            "TERMINAL": TERMINAL,
+            "BREAST_CANCER_TEST_DATASET": BREAST_CANCER_TEST_DATASET,
+            "BREAST_CANCER_TRAIN_DATASET": BREAST_CANCER_TRAIN_DATASET,
+        }
+
+        with open(self.json_filename, "w") as json_file:
+            json.dump(data_to_save, json_file, indent=4)
 
     def run(self, multi_processing_workers=None):
         self._load_data()
@@ -212,17 +280,17 @@ class Simulation:
         )
 
         total_sim_time = time.time() - sim_time
-        self.logger.info(f"Simulation took {total_sim_time:.2f} seconds")
-        print(f"Simulation took {total_sim_time:.2f} seconds")
+        self._write_log(f"Simulation took {total_sim_time:.2f} s")
 
     def _run_evolution(self, population, multi_processing_workers=None):
         # Seed sequence to ensure unique seeds for each process
-        seed_sequence = THREAD_INITIAL_SEED
+        seed_sequence = self.thread_initial_seed
+
+        generation_times = []
 
         for generation in range(1, NUM_GENERATIONS + 1):
-            self.logger.info(f"Generation: {generation}")
-            print(f"Generation: {generation}")
-            print(f"Population size: {len(population)}")
+            self._write_log(f"Generation: {generation}")
+            self._write_log(f"Population size: {len(population)}")
 
             start_time = time.time()
 
@@ -231,11 +299,15 @@ class Simulation:
 
             # Get the childs and the new seed sequence
             childs, seed_sequence = self.generate_childs(
-                population, seed_sequence, workers=multi_processing_workers
+                population,
+                seed_sequence,
+                CROSSOVERS_BY_GENERATION,
+                CROSSOVER_PROB,
+                MUTATION_PROB,
+                workers=multi_processing_workers,
             )
 
-            print(f"Generated childs: {len(childs)}")
-            self.logger.info(f"Generated childs: {len(childs)}")
+            self._write_log(f"Generated childs: {len(childs)}")
 
             replaced_genes = set()
 
@@ -261,6 +333,11 @@ class Simulation:
             self.evaluate_generation(population)
 
             time_taken = time.time() - start_time
-            self.logger.info(f"Generation {generation} took {time_taken:.2f} seconds")
-            print(f"Generation {generation} took {time_taken:.2f} seconds")
+            generation_times.append(time_taken)
+
+            self._write_log(f"Generation {generation} took {time_taken:.2f} s")
             print_line()
+
+        self._write_log(f"Avg. generation time: {np.mean(generation_times):.2f} s")
+        self._write_log(f"Normalization method: {NORMALIZATION_METHOD}")
+        self._write_log(f"Finished evolution")

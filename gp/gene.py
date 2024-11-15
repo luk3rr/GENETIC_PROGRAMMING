@@ -6,7 +6,7 @@
 
 import numpy as np
 
-from .parameters import DIMENSION
+from .parameters import DATA_DIMENSION
 
 class Node:
     def __init__(self, value, depth, left=None, right=None):
@@ -127,7 +127,7 @@ class Gene:
         """
 
         assert (
-            len(ei) == len(ej) == DIMENSION
+            len(ei) == len(ej) == DATA_DIMENSION
         ), "The input values must have the same dimension"
 
         ei = np.array(ei)

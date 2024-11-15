@@ -4,27 +4,26 @@
 # Created on: November 12, 2024
 # Author: Lucas Araújo <araujolucas@dcc.ufmg.br>
 
-SEED = 2427935994
-THREAD_INITIAL_SEED = 3234817
+from enum import Enum
 
 TREE_MAX_DEPTH = 7
-TREE_MIN_DEPTH = 1
+TREE_MIN_DEPTH = 3
 
 assert TREE_MAX_DEPTH >= TREE_MIN_DEPTH and TREE_MIN_DEPTH > 0, "Invalid tree depth"
 
-DIMENSION = 9
+DATA_DIMENSION = 9
 
 NON_TERMINAL_PROB = 0.5
 TERMINAL_PROB = 1 - NON_TERMINAL_PROB
 
-POPULATION_SIZE = 250
+POPULATION_SIZE = 100
 CROSSOVERS_BY_GENERATION = POPULATION_SIZE // 2
-NUM_GENERATIONS = 50
+NUM_GENERATIONS = 10
 
 CROSSOVER_PROB = 0.9
 MUTATION_PROB = 0.1
 
-TOURNAMENT_SIZE = 2
+TOURNAMENT_SIZE = 3
 ELITISM_SIZE = round(POPULATION_SIZE * 0.05)
 
 NON_TERMINAL = ["+", "-", "*", "/"]
@@ -50,10 +49,13 @@ TERMINAL = [
     "10",
 ]
 
-DATA_FOLDER = "data/"
-LOG_FOLDER = "log/"
 
-BREAST_CANCER_TEST_DATASET = DATA_FOLDER + "breast_cancer_coimbra_test.csv"
-BREAST_CANCER_TRAIN_DATASET = DATA_FOLDER + "breast_cancer_coimbra_train.csv"
+class NormalizationMethod(Enum):
+    MIN_MAX = "MIN_MAX"
+    STANDARD = "Z_SCORE"
 
-LOG_PREFIX = "sim"
+    def __str__(self):
+        return self.value
+
+
+NORMALIZATION_METHOD = NormalizationMethod.MIN_MAX

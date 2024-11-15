@@ -18,7 +18,7 @@ from .population import (
     selection_tournament,
     evaluate_fitness,
 )
-from .parameters import TERMINAL, NON_TERMINAL, TREE_MAX_DEPTH, TREE_MIN_DEPTH
+from .parameters import TERMINAL, NON_TERMINAL, TREE_MAX_DEPTH
 
 
 def crossover(parent1, parent2) -> Gene:
