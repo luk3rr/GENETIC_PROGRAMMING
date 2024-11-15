@@ -4,13 +4,14 @@
 # Created on: November 12, 2024
 # Author: Lucas Araújo <araujolucas@dcc.ufmg.br>
 
-import random
+import numpy as np
 
-from typing import List
+from typing import List, Tuple
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.metrics import v_measure_score
 
-from .parameters import *
-from .gene import *
-
+from .gene import Gene, Node
+from .parameters import TERMINAL, NON_TERMINAL, TREE_MAX_DEPTH, TOURNAMENT_SIZE, TERMINAL_PROB
 
 def get_leaf_nodes(node, nodes):
     """
@@ -67,7 +68,7 @@ def select_random_subtree(gene, depth=None) -> Node:
 
     bfs(gene.root_node, 0, depth, nodes)
 
-    return random.choice(nodes)
+    return np.random.choice(nodes)
 
 
 def grow(depth) -> Node:
@@ -78,16 +79,16 @@ def grow(depth) -> Node:
     @return: A random node
     """
     if depth == 0:
-        return Node(random.choice(TERMINAL), depth=TREE_MAX_DEPTH)
+        return Node(np.random.choice(TERMINAL), depth=TREE_MAX_DEPTH)
 
-    if random.random() < TERMINAL_PROB:
-        return Node(random.choice(TERMINAL), depth=TREE_MAX_DEPTH - depth)
+    if np.random.random() < TERMINAL_PROB:
+        return Node(np.random.choice(TERMINAL), depth=TREE_MAX_DEPTH - depth)
 
     left = grow(depth - 1)
     right = grow(depth - 1)
 
     return Node(
-        random.choice(NON_TERMINAL),
+        np.random.choice(NON_TERMINAL),
         depth=TREE_MAX_DEPTH - depth,
         left=left,
         right=right,
@@ -102,13 +103,13 @@ def full(depth) -> Node:
     @return: A random node
     """
     if depth == 0:
-        return Node(random.choice(TERMINAL), depth=TREE_MAX_DEPTH)
+        return Node(np.random.choice(TERMINAL), depth=TREE_MAX_DEPTH)
 
     left = full(depth - 1)
     right = full(depth - 1)
 
     return Node(
-        random.choice(NON_TERMINAL),
+        np.random.choice(NON_TERMINAL),
         depth=TREE_MAX_DEPTH - depth,
         left=left,
         right=right,
@@ -122,7 +123,7 @@ def half_and_half(depth) -> Node:
     @param depth: The depth of the tree
     @return: A random node
     """
-    return grow(depth) if random.random() < 0.5 else full(depth)
+    return grow(depth) if np.random.random() < 0.5 else full(depth)
 
 
 def generate_random_tree(depth, strategy=grow) -> Node:
@@ -199,7 +200,7 @@ def selection_tournament(
     NOTE: Ensure that the fitnesses of the genes are updated before calling this function
     """
     # Random selection of the subset of genes for the tournament
-    tournament = random.sample(population, tournament_size)
+    tournament = np.random.choice(population, tournament_size, replace=False)
 
     if problem_type == "min":
         return min(tournament, key=lambda gene: gene.fitness)
@@ -228,3 +229,20 @@ def count_duplicated_genes(population) -> Tuple[int, List[int]]:
             unique_genes.add(gene)
 
     return duplicated_genes, duplicated_indexes
+
+
+def evaluate_fitness(gene, data, true_labels):
+    """
+    Evaluate the fitness of the gene
+
+    @param gene: The gene to evaluate
+    @param data: The data to evaluate
+    @param true_labels: The true labels of the data
+    @return: The fitness of the gene
+    """
+    distance_matrix = gene.get_distance_matrix(data)
+    clustering = AgglomerativeClustering(
+        n_clusters=len(set(true_labels)), metric="precomputed", linkage="average"
+    )
+
+    return float(v_measure_score(true_labels, clustering.fit_predict(distance_matrix)))

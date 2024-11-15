@@ -4,14 +4,21 @@
 # Created on: November 12, 2024
 # Author: Lucas Araújo <araujolucas@dcc.ufmg.br>
 
-import random
-
 from copy import deepcopy
+from typing import Tuple
 
-from .gene import *
-from .parameters import *
-from .population import *
-from .utils import *
+import numpy as np
+
+from .gene import Gene
+from .population import (
+    select_random_subtree,
+    get_leaf_nodes,
+    generate_random_tree,
+    selection_tournament,
+    evaluate_fitness,
+)
+from .parameters import TERMINAL, NON_TERMINAL, TREE_MAX_DEPTH
+
 
 def crossover(parent1, parent2) -> Gene:
     """
@@ -28,7 +35,7 @@ def crossover(parent1, parent2) -> Gene:
     # 0.5 of chance to choose parent 1 or parent 2 as the base for the child
     # Then choose a random node from the base and a random node from the other parent
     # and swap the nodes
-    if random.random() < 0.5:
+    if np.random.random() < 0.5:
         child_base = deepcopy(parent1)
         subtree_parent = select_random_subtree(parent2, height)
     else:
@@ -55,9 +62,11 @@ def one_point_mutation(gene):
     subtree = select_random_subtree(gene)
 
     if subtree.is_leaf():
-        subtree.value = random.choice(TERMINAL)
+        subtree.value = np.random.choice(TERMINAL)
     else:
-        subtree.value = random.choice(NON_TERMINAL)
+        subtree.value = np.random.choice(NON_TERMINAL)
+
+    gene.calculate_tree_height()
 
 
 def expand_mutation(gene):
@@ -73,17 +82,19 @@ def expand_mutation(gene):
 
     get_leaf_nodes(subtree, nodes)
 
-    leaf = random.choice(nodes)
+    leaf = np.random.choice(nodes)
 
     new_random = generate_random_tree(
-        random.randint(1, TREE_MAX_DEPTH - gene.root_node.get_depth())
-        if TREE_MAX_DEPTH > gene.root_node.get_depth()
+        np.random.randint(1, TREE_MAX_DEPTH - gene.root_node.get_depth())
+        if TREE_MAX_DEPTH > gene.root_node.get_depth() + 1
         else 1
     )
 
     leaf.value = new_random.value
     leaf.left = new_random.left
     leaf.right = new_random.right
+
+    gene.calculate_tree_height()
 
 
 def shrink_mutation(gene):
@@ -96,7 +107,9 @@ def shrink_mutation(gene):
 
     subtree.left = None
     subtree.right = None
-    subtree.value = random.choice(TERMINAL)
+    subtree.value = np.random.choice(TERMINAL)
+
+    gene.calculate_tree_height()
 
 
 def mutate(gene, strategy=one_point_mutation):
@@ -107,7 +120,7 @@ def mutate(gene, strategy=one_point_mutation):
     @param strategy: The mutation strategy
     """
     strategy(gene)
-    gene.calculate_tree_height()
+
 
 def mutate_random_strategy(gene):
     """
@@ -115,5 +128,45 @@ def mutate_random_strategy(gene):
 
     @param gene: The gene to mutate
     """
-    strategy = random.choice([one_point_mutation, expand_mutation, shrink_mutation])
+    strategy = np.random.choice(
+        np.array([one_point_mutation, expand_mutation, shrink_mutation])
+    )
     mutate(gene, strategy)
+
+
+def generate_child(
+        population, data, true_labels, crossover_prob, mutation_prob, seed
+) -> Tuple[Gene, Tuple[Gene, Gene]] | None:
+    """
+    Generates a new child by selecting two parents, applying crossover and mutation, and evaluating fitness.
+
+    @param population: The current population of genes
+    @param data: The data to use for fitness evaluation
+    @param true_labels: The true labels to use for fitness evaluation
+    @param crossover_prob: The probability of applying crossover
+    @param mutation_prob: The probability of applying mutation
+    @param seed: The seed to use for random number generation
+    NOTE: If this function is parallelized with ThreadPoolExecutor, the seed defined
+          here will override the global seed. Therefore, parallelize with ProcessPoolExecutor.
+    @return: A tuple in the form (child, (parent1, parent2)) if crossover occurs, None otherwise
+    """
+    np.random.seed(seed)
+
+    # Select two parents
+    parent1 = selection_tournament(population)
+    parent2 = selection_tournament(population)
+
+    # Apply crossover with the given probability
+    if np.random.random() < crossover_prob:
+        child = crossover(parent1, parent2)
+
+        # Apply mutation with the given probability
+        if np.random.random() < mutation_prob:
+            mutate_random_strategy(child)
+
+        # Evaluate the child's fitness
+        child.fitness = evaluate_fitness(child, data, true_labels)
+
+        return (child, (parent1, parent2))
+    else:
+        return None

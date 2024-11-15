@@ -11,8 +11,12 @@ from gp.parameters import *
 
 from gp.test import *
 
+def set_global_seed(seed):
+    np.random.seed(seed)
 
 def main():
+    set_global_seed(SEED)
+
     sim = Simulation()
 
     sim.run()

@@ -8,7 +8,7 @@ import csv
 from typing import Tuple
 
 from colorama import Fore, Style
-from typing import List
+from typing import List, Tuple
 
 from .parameters import DIMENSION, NON_TERMINAL
 

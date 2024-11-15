@@ -6,13 +6,7 @@
 
 import numpy as np
 
-from sklearn.cluster import AgglomerativeClustering
-from sklearn.metrics import v_measure_score
-from typing import List, Tuple
-
 from .parameters import DIMENSION
-from .utils import *
-
 
 class Node:
     def __init__(self, value, depth, left=None, right=None):
@@ -45,7 +39,7 @@ class Gene:
     def __init__(self, tree):
         self.root_node = tree
         self.height = self._calculate_tree_height(self.root_node)
-        self.fitness = None
+        self.fitness: float = 0.0
 
     def __eq__(self, other):
         """
@@ -56,7 +50,7 @@ class Gene:
         """
         if not isinstance(other, Gene):
             return False
-        return are_trees_equal(self.root_node, other.root_node)
+        return hash(self) == hash(other)
 
     def __ne__(self, other):
         """
@@ -99,24 +93,6 @@ class Gene:
         right_height = self._calculate_tree_height(node.right)
 
         return 1 + max(left_height, right_height)
-
-    def evaluate_fitness(self, data, true_labels):
-        """
-        Evaluate the fitness of the gene
-
-        @param gene: The gene to evaluate
-        @param data: The data to evaluate
-        @param true_labels: The true labels of the data
-        @return: The fitness of the gene
-        """
-        distance_matrix = self.get_distance_matrix(data)
-        clustering = AgglomerativeClustering(
-            n_clusters=len(set(true_labels)), metric="precomputed", linkage="average"
-        )
-
-        self.fitness = v_measure_score(
-            true_labels, clustering.fit_predict(distance_matrix)
-        )
 
     def get_distance_matrix(self, data) -> np.ndarray:
         """
