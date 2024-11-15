@@ -4,6 +4,7 @@
 # Created on: November 13, 2024
 # Author: Lucas Araújo <araujolucas@dcc.ufmg.br>
 
+import heapq
 import time
 import logging
 import numpy as np
@@ -15,6 +16,7 @@ from datetime import datetime
 from .gene import Gene
 from .operators import generate_child
 from .parameters import (
+    CROSSOVERS_BY_GENERATION,
     LOG_FOLDER,
     LOG_PREFIX,
     BREAST_CANCER_TRAIN_DATASET,
@@ -23,14 +25,16 @@ from .parameters import (
     CROSSOVER_PROB,
     MUTATION_PROB,
     ELITISM_SIZE,
-    THREAD_INITIAL_SEED
+    THREAD_INITIAL_SEED,
+    TREE_MAX_DEPTH,
+    TREE_MIN_DEPTH,
 )
 from .population import (
     generate_initial_population,
     count_duplicated_genes,
     evaluate_fitness,
 )
-from .utils import read_data_from_csv, print_line
+from .utils import print_tree, read_data_from_csv, print_line
 
 
 class Simulation:
@@ -57,7 +61,7 @@ class Simulation:
         self.true_labels = [label for label, _ in labeled_data]
         self.data = [features for _, features in labeled_data]
 
-    def evaluate_generation(self, generation, population):
+    def evaluate_generation(self, population):
         """
         Evaluate the fitness of the population and log the stats.
         """
@@ -67,14 +71,14 @@ class Simulation:
         best_gene = max(population)
         worst_gene = min(population)
 
-        self.logger.info(f"Stats for Generation {generation}:")
+        self.logger.info(f"Stats:")
         self.logger.info(f"\tBest:   {best_gene.fitness}")
         self.logger.info(f"\tWorst:  {worst_gene.fitness}")
         self.logger.info(f"\tMean:   {mean_fitness}")
         self.logger.info(f"\tMedian: {median_fitness}")
         self.logger.info(f"\tStd:    {std_fitness}")
 
-        print(f"Stats for Generation {generation}:")
+        print(f"Stats:")
         print(f"\tBest:   {best_gene.fitness}")
         print(f"\tWorst:  {worst_gene.fitness}")
         print(f"\tMean:   {mean_fitness}")
@@ -126,11 +130,7 @@ class Simulation:
         @param workers: The number of workers to use. If None, uses the default number
                         of workers (all)
         """
-        with (
-            ProcessPoolExecutor(max_workers=workers)
-            if workers
-            else ProcessPoolExecutor()
-        ) as executor:
+        with ProcessPoolExecutor(max_workers=workers) as executor:
             futures = {
                 executor.submit(
                     evaluate_fitness, gene, self.data, self.true_labels
@@ -143,7 +143,11 @@ class Simulation:
                 gene.fitness = future.result()
 
     def generate_childs(
-            self, population, seed_sequence, workers=None, total_possible_crossovers=POPULATION_SIZE
+        self,
+        population,
+        seed_sequence,
+        workers=None,
+        total_possible_crossovers=CROSSOVERS_BY_GENERATION,
     ) -> Tuple[List[Tuple[Gene, Tuple[Gene, Gene]]], int]:
         """
         Generates the next generation of a given population in parallel.
@@ -154,13 +158,9 @@ class Simulation:
                         of workers (all)
         @return: A list of tuples (child, (parent1, parent2)) for the new generation
         """
-        results = []
+        childs = []
 
-        with (
-            ProcessPoolExecutor(max_workers=workers)
-            if workers
-            else ProcessPoolExecutor()
-        ) as executor:
+        with ProcessPoolExecutor(max_workers=workers) as executor:
             futures = []
             for _ in range(total_possible_crossovers):
                 # Pass a unique seed to each process and increment for the next
@@ -174,18 +174,18 @@ class Simulation:
                         self.true_labels,
                         CROSSOVER_PROB,
                         MUTATION_PROB,
-                        seed_sequence
+                        seed_sequence,
                     )
                 )
 
             # Collect results, filtering out any None values where crossover did not occur
-            results.extend(
+            childs.extend(
                 future.result() for future in futures if future.result() is not None
             )
 
-        return results, seed_sequence
+        return childs, seed_sequence
 
-    def run(self):
+    def run(self, multi_processing_workers=None):
         self._load_data()
 
         if self.data is None or self.true_labels is None:
@@ -196,60 +196,71 @@ class Simulation:
 
         self.handle_duplicate_genes(population)
 
-        self.evaluate_population(population, 2)
+        self.evaluate_population(population, workers=multi_processing_workers)
 
+        # Ensure all genes are within the height bounds and have a fitness value
+        for gene in population:
+            assert (
+                gene.height <= TREE_MAX_DEPTH and gene.height >= TREE_MIN_DEPTH
+            ), f"Gene height is out of bounds [{TREE_MIN_DEPTH}, {TREE_MAX_DEPTH}]: {gene.height}"
+
+            assert gene.fitness is not None, "Gene fitness is None"
+
+        # Evaluate the initial population
+        self._run_evolution(
+            population, multi_processing_workers=multi_processing_workers
+        )
+
+        total_sim_time = time.time() - sim_time
+        self.logger.info(f"Simulation took {total_sim_time:.2f} seconds")
+        print(f"Simulation took {total_sim_time:.2f} seconds")
+
+    def _run_evolution(self, population, multi_processing_workers=None):
+        # Seed sequence to ensure unique seeds for each process
         seed_sequence = THREAD_INITIAL_SEED
 
         for generation in range(1, NUM_GENERATIONS + 1):
-            population_size = len(population)
-
-            self.logger.info(f"Generation {generation}")
-            self.logger.info(f"Population size: {population_size}")
-            print(f"Generation {generation}:")
-            print(f"Population size: {population_size}")
+            self.logger.info(f"Generation: {generation}")
+            print(f"Generation: {generation}")
+            print(f"Population size: {len(population)}")
 
             start_time = time.time()
 
             # Elitism: Keep the best ELITISM_SIZE genes from the previous generation
-            best_genes = sorted(population)[-ELITISM_SIZE:]
+            new_population = heapq.nlargest(ELITISM_SIZE, population)
 
-            childs, seed_sequence = self.generate_childs(population, seed_sequence, 2)
+            # Get the childs and the new seed sequence
+            childs, seed_sequence = self.generate_childs(
+                population, seed_sequence, workers=multi_processing_workers
+            )
 
-            # Add the child to the new generation only if it is better than your parents
+            print(f"Generated childs: {len(childs)}")
+            self.logger.info(f"Generated childs: {len(childs)}")
+
+            replaced_genes = set()
+
+            # Add the child to the new generation only if it is better than its parents
             # and remove the worst parent
             for child, (selected1, selected2) in childs:
                 worst_parent = min(selected1, selected2)
+                if child > worst_parent and worst_parent not in replaced_genes:
+                    new_population.append(child)
+                    replaced_genes.add(worst_parent)
 
-                if child > worst_parent:
-                    if worst_parent in population:
-                        # Check if the worst parent is in the population
-                        # (In some cases, it may have already been replaced by another child)
-                        index_to_replace = population.index(worst_parent)
-                        population[index_to_replace] = child
-                    else:
-                        # If the worst parent is not in the population, just add the child
-                        population.append(child)
-                        pass
+            # Ensure we select the correct number of additional genes to reach POPULATION_SIZE
+            remaining_needed = POPULATION_SIZE - len(new_population)
 
-            # Add the best genes from the previous generation to the new generation
-            for best_gene in best_genes:
-                if best_gene not in population:
-                    population.append(best_gene)
+            # Get the genes that were not replaced
+            additional_genes = [g for g in population if g not in new_population]
 
-            # Ensure the population size remains consistent by keeping only
-            # the best POPULATION_SIZE genes (which are now at the end of the list)
-            population = population[-POPULATION_SIZE:]
+            # Add the best remaining genes to complete the population size
+            new_population.extend(heapq.nlargest(remaining_needed, additional_genes))
 
-            self.evaluate_generation(generation, population)
+            population = new_population
 
-            end_time = time.time()
-            time_taken = end_time - start_time
+            self.evaluate_generation(population)
 
+            time_taken = time.time() - start_time
             self.logger.info(f"Generation {generation} took {time_taken:.2f} seconds")
             print(f"Generation {generation} took {time_taken:.2f} seconds")
             print_line()
-
-        sim_end_time = time.time()
-        total_sim_time = sim_end_time - sim_time
-        self.logger.info(f"Simulation took {total_sim_time:.2f} seconds")
-        print(f"Simulation took {total_sim_time:.2f} seconds")

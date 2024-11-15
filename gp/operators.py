@@ -11,13 +11,14 @@ import numpy as np
 
 from .gene import Gene
 from .population import (
+    half_and_half,
     select_random_subtree,
     get_leaf_nodes,
     generate_random_tree,
     selection_tournament,
     evaluate_fitness,
 )
-from .parameters import TERMINAL, NON_TERMINAL, TREE_MAX_DEPTH
+from .parameters import TERMINAL, NON_TERMINAL, TREE_MAX_DEPTH, TREE_MIN_DEPTH
 
 
 def crossover(parent1, parent2) -> Gene:
@@ -84,11 +85,14 @@ def expand_mutation(gene):
 
     leaf = np.random.choice(nodes)
 
-    new_random = generate_random_tree(
-        np.random.randint(1, TREE_MAX_DEPTH - gene.root_node.get_depth())
-        if TREE_MAX_DEPTH > gene.root_node.get_depth() + 1
-        else 1
+    depth = (
+        np.random.randint(1, TREE_MAX_DEPTH - leaf.get_depth())
+        if TREE_MAX_DEPTH > leaf.get_depth() + 1
+        else 0
     )
+
+    # Generate a random tree with half and half method and the depth value
+    new_random = generate_random_tree(half_and_half, depth)
 
     leaf.value = new_random.value
     leaf.left = new_random.left
@@ -135,7 +139,7 @@ def mutate_random_strategy(gene):
 
 
 def generate_child(
-        population, data, true_labels, crossover_prob, mutation_prob, seed
+    population, data, true_labels, crossover_prob, mutation_prob, seed
 ) -> Tuple[Gene, Tuple[Gene, Gene]] | None:
     """
     Generates a new child by selecting two parents, applying crossover and mutation, and evaluating fitness.

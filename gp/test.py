@@ -39,8 +39,8 @@ class GPTest:
     def test_crossover(self):
         print("Running crossover test...")
 
-        parent1 = Gene(generate_random_tree(TREE_MAX_DEPTH))
-        parent2 = Gene(generate_random_tree(TREE_MAX_DEPTH))
+        parent1 = Gene(generate_random_tree(full, TREE_MAX_DEPTH))
+        parent2 = Gene(generate_random_tree(full, TREE_MAX_DEPTH))
 
         print("Before crossover:")
         print("Parent 1:", parent1.show_prefix())
@@ -63,7 +63,7 @@ class GPTest:
     def test_one_point_mutation(self):
         print("Running one-point mutation test...")
 
-        gene = Gene(generate_random_tree(TREE_MAX_DEPTH))
+        gene = Gene(generate_random_tree(full, TREE_MAX_DEPTH))
 
         print("Before mutation:")
         print(gene.show_prefix())
@@ -76,7 +76,7 @@ class GPTest:
     def test_expand_mutation(self):
         print("Running expand mutation test...")
 
-        gene = Gene(generate_random_tree(TREE_MAX_DEPTH))
+        gene = Gene(generate_random_tree(full, TREE_MAX_DEPTH))
 
         print("Before expand mutation:")
         print(gene.show_prefix())
@@ -89,7 +89,7 @@ class GPTest:
     def test_shrink_mutation(self):
         print("Running shrink mutation test...")
 
-        gene = Gene(generate_random_tree(TREE_MAX_DEPTH))
+        gene = Gene(generate_random_tree(full, TREE_MAX_DEPTH))
 
         print("Before shrink mutation:")
         print(gene.show_prefix())
@@ -105,7 +105,7 @@ class GPTest:
         )
 
         for i in range(num_trees):
-            gene = Gene(generate_random_tree(TREE_MAX_DEPTH))
+            gene = Gene(generate_random_tree(full, TREE_MAX_DEPTH))
 
             print(f"Tree {i + 1}:")
             print("Prefix notation:", gene.show_prefix())
