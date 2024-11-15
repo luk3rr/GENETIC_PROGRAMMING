@@ -64,9 +64,13 @@ class Simulation:
         self.seed = seed
         self.thread_initial_seed = thread_initial_seed
 
-        np.random.seed(self.seed) # Seed the random number generator
+        np.random.seed(self.seed)  # Seed the random number generator
 
         now = datetime.now()
+
+        self.raw_log_filename = (
+            f"{LOG_FOLDER}{now.strftime('%Y-%m-%d_%H-%M-%S')}_{LOG_FILE_SUFFIX}.dat"
+        )
 
         self.log_filename = (
             f"{LOG_FOLDER}{now.strftime('%Y-%m-%d_%H-%M-%S')}_{LOG_FILE_SUFFIX}.log"
@@ -80,6 +84,19 @@ class Simulation:
             format="%(asctime)s - %(levelname)s - %(message)s",
         )
         self.logger = logging.getLogger()
+
+    def _initialize_raw_log_file(self):
+        """
+        Initializes the log file with headers for better readability.
+        """
+        with open(self.raw_log_filename, "w") as f:
+            f.write(
+                "Generation\tPopulation\tBestFitness\tWorstFitness\tMeanFitness\tMedianFitness\tStdFitness\tTimeTaken\n"
+            )
+
+    def _write_raw_log(self, message):
+        with open(self.raw_log_filename, "a") as f:
+            f.write(message)
 
     def _write_log(self, message, level=logging.INFO, print_message=True):
         self.logger.log(level, message)
@@ -105,7 +122,7 @@ class Simulation:
             case _:
                 raise ValueError("Invalid normalization method")
 
-    def evaluate_generation(self, population):
+    def evaluate_generation(self, population, generation_number, time_taken=None):
         """
         Evaluate the fitness of the population and log the stats.
         """
@@ -115,12 +132,18 @@ class Simulation:
         best_gene = max(population)
         worst_gene = min(population)
 
-        self._write_log(f"Stats:")
-        self._write_log(f"\tBest:   {best_gene.fitness}")
-        self._write_log(f"\tWorst:  {worst_gene.fitness}")
-        self._write_log(f"\tMean:   {mean_fitness}")
-        self._write_log(f"\tMedian: {median_fitness}")
-        self._write_log(f"\tStd:    {std_fitness}")
+        # Log the stats
+        self._write_log(
+            f"Stats:\n\tBest:   {best_gene.fitness}\n\tWorst:  {worst_gene.fitness}\n\tMean:   {mean_fitness}\n\tMedian: {median_fitness}\n\tStd:    {std_fitness}"
+        )
+
+        if time_taken is not None:
+            self._write_log(f"Generation took {time_taken:.2f} s")
+
+        # Write the raw log
+        self._write_raw_log(
+            f"{generation_number}\t{len(population)}\t{best_gene.fitness}\t{worst_gene.fitness}\t{mean_fitness}\t{median_fitness}\t{std_fitness}\t{time_taken or 'N/A'}\n"
+        )
 
     def handle_duplicate_genes(self, population):
         """
@@ -255,6 +278,7 @@ class Simulation:
 
     def run(self, multi_processing_workers=None):
         self._load_data()
+        self._initialize_raw_log_file()
 
         if self.data is None or self.true_labels is None:
             raise ValueError("Data or true labels not loaded")
@@ -330,12 +354,11 @@ class Simulation:
 
             population = new_population
 
-            self.evaluate_generation(population)
-
             time_taken = time.time() - start_time
             generation_times.append(time_taken)
 
-            self._write_log(f"Generation {generation} took {time_taken:.2f} s")
+            self.evaluate_generation(population, generation, time_taken)
+
             print_line()
 
         self._write_log(f"Avg. generation time: {np.mean(generation_times):.2f} s")

@@ -8,6 +8,7 @@ import numpy as np
 
 from .parameters import DATA_DIMENSION
 
+
 class Node:
     def __init__(self, value, depth, left=None, right=None):
         """
