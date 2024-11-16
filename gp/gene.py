@@ -6,7 +6,6 @@
 
 import numpy as np
 
-from .parameters import DATA_DIMENSION
 from .utils import calculate_tree_height
 
 class Node:
@@ -111,11 +110,6 @@ class Gene:
         @param ei: The first input values
         @param ej: The second input values
         """
-
-        assert (
-            len(ei) == len(ej) == DATA_DIMENSION
-        ), "The input values must have the same dimension"
-
         ei = np.array(ei)
         ej = np.array(ej)
         xs = ei - ej
@@ -135,10 +129,13 @@ class Gene:
 
         if node.value == "+":
             return left + right
+
         elif node.value == "-":
             return left - right
+
         elif node.value == "*":
             return left * right
+
         elif node.value == "/":
             # Protected division
             return left / right if right != 0 else left / 1e-10

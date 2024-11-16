@@ -7,7 +7,6 @@
 import json
 import heapq
 import time
-import logging
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
@@ -19,15 +18,13 @@ from .gene import Gene
 from .operators import generate_child
 
 from .parameters import (
-    N_BEST,
+    TERMINAL_BASE,
     TREE_MAX_DEPTH,
     TREE_MIN_DEPTH,
-    DATA_DIMENSION,
     NON_TERMINAL_PROB,
     TERMINAL_PROB,
     NORMALIZATION_METHOD,
     NON_TERMINAL,
-    TERMINAL,
     NormalizationMethod,
 )
 
@@ -37,6 +34,7 @@ from .constants import (
     LOG_FOLDER,
     LOG_FILE_SUFFIX,
     REPRODUCIBILITY_FILE_SUFFIX,
+    WINE_RED_TRAIN_DATASET,
 )
 
 from .population import (
@@ -44,7 +42,7 @@ from .population import (
     count_duplicated_genes,
     evaluate_fitness,
 )
-from .utils import print_tree, read_data_from_csv, print_line
+from .utils import read_data_from_csv
 
 
 class Simulation:
@@ -59,8 +57,11 @@ class Simulation:
         mutation_prob,
         tournament_size,
         elitism_size,
+        dataset,
         simulation_id=None,
     ):
+        # Data
+        self.dataset = dataset
         self.train_data = None
         self.train_true_labels = None
         self.test_data = None
@@ -79,6 +80,8 @@ class Simulation:
 
         np.random.seed(self.seed)  # Seed the random number generator
 
+        self.terminals = None
+
         if simulation_id is None:
             now = datetime.now()
 
@@ -86,25 +89,15 @@ class Simulation:
                 f"{LOG_FOLDER}{now.strftime('%Y-%m-%d_%H-%M-%S')}_{LOG_FILE_SUFFIX}.dat"
             )
 
-            self.log_filename = (
-                f"{LOG_FOLDER}{now.strftime('%Y-%m-%d_%H-%M-%S')}_{LOG_FILE_SUFFIX}.log"
-            )
-
             self.json_filename = f"{LOG_FOLDER}{now.strftime('%Y-%m-%d_%H-%M-%S')}_{REPRODUCIBILITY_FILE_SUFFIX}.json"
 
         else:
+            simulation_id = simulation_id.strip().replace(" ", "_")
+
             self.raw_log_filename = f"{LOG_FOLDER}{simulation_id}_{LOG_FILE_SUFFIX}.dat"
-            self.log_filename = f"{LOG_FOLDER}{simulation_id}_{LOG_FILE_SUFFIX}.log"
             self.json_filename = (
                 f"{LOG_FOLDER}{simulation_id}_{REPRODUCIBILITY_FILE_SUFFIX}.json"
             )
-
-        logging.basicConfig(
-            filename=self.log_filename,
-            level=logging.INFO,
-            format="%(asctime)s - %(levelname)s - %(message)s",
-        )
-        self.logger = logging.getLogger()
 
     def _initialize_raw_log_file(self):
         """
@@ -116,24 +109,34 @@ class Simulation:
             )
 
     def _write_raw_log(self, message):
-        with open(self.raw_log_filename, "a") as f:
+        with open(self.raw_log_filename, "a", buffering=8192) as f:
             f.write(message)
 
-    def _write_log(self, message, level=logging.INFO, print_message=True):
-        self.logger.log(level, message)
-
-        if print_message:
-            print(message)
-
     def _load_data(self):
-        labeled_train_data = read_data_from_csv(BREAST_CANCER_TRAIN_DATASET)
-        labeled_test_data = read_data_from_csv(BREAST_CANCER_TEST_DATASET)
+        if self.dataset is None:
+            raise ValueError("Dataset not provided")
+
+        if self.dataset == "BCC":
+            labeled_train_data = read_data_from_csv(BREAST_CANCER_TRAIN_DATASET, 9)
+            labeled_test_data = read_data_from_csv(BREAST_CANCER_TEST_DATASET, 9)
+
+        elif self.dataset == "WR":
+            labeled_train_data = read_data_from_csv(WINE_RED_TRAIN_DATASET, 11)
+            labeled_test_data = read_data_from_csv(WINE_RED_TRAIN_DATASET, 11)
+
+        else:
+            raise ValueError("Invalid dataset")
 
         self.train_true_labels = [label for label, _ in labeled_train_data]
         self.train_data = [features for _, features in labeled_train_data]
 
         self.test_true_labels = [label for label, _ in labeled_test_data]
         self.test_data = [features for _, features in labeled_test_data]
+
+        # Add the terminal values to the terminals list based on the number of features
+        self.terminals = [
+            f"x{i}" for i in range(len(self.train_data[0]))
+        ] + TERMINAL_BASE
 
         match NORMALIZATION_METHOD:
             case NormalizationMethod.MIN_MAX:
@@ -160,20 +163,6 @@ class Simulation:
         worst_gene = min(population)
 
         duplicated = count_duplicated_genes(population)[0]
-
-        # Log the stats
-        self._write_log(
-            f"Stats:\n"
-            f"|> Best:       {best_gene.fitness}\n"
-            f"|> Worst:      {worst_gene.fitness}\n"
-            f"|> Mean:       {mean_fitness}\n"
-            f"|> Median:     {median_fitness}\n"
-            f"|> Std:        {std_fitness}\n"
-            f"|> Duplicated: {duplicated}"
-        )
-
-        if time_taken is not None:
-            self._write_log(f"Generation took {time_taken:.2f} s")
 
         # Write the raw log
         self._write_raw_log(
@@ -221,7 +210,9 @@ class Simulation:
                 # No duplicated genes found, break the loop
                 break
 
-            new_genes = generate_initial_population(duplicated_genes, "half_and_half")
+            new_genes = generate_initial_population(
+                duplicated_genes, self.terminals, "half_and_half"
+            )
 
             if len(new_genes) != duplicated_genes:
                 raise ValueError(
@@ -236,8 +227,6 @@ class Simulation:
                 population[index] = new_genes[i]
 
             total_replaced_genes += duplicated_genes
-
-        self._write_log(f"Replaced {total_replaced_genes} duplicated genes")
 
         return total_replaced_genes
 
@@ -264,6 +253,7 @@ class Simulation:
     def generate_childs(
         self,
         population,
+        terminals,
         seed_sequence,
         total_possible_crossovers,
         cross_prob,
@@ -283,6 +273,7 @@ class Simulation:
 
         with ProcessPoolExecutor(max_workers=workers) as executor:
             futures = []
+
             for _ in range(total_possible_crossovers):
                 # Pass a unique seed to each process and increment for the next
                 seed_sequence += 1
@@ -291,6 +282,7 @@ class Simulation:
                     executor.submit(
                         generate_child,
                         population,
+                        terminals,
                         self.train_data,
                         self.train_true_labels,
                         self.tournament_size,
@@ -316,7 +308,6 @@ class Simulation:
             "THREAD_INITIAL_SEED": self.thread_initial_seed,
             "TREE_MAX_DEPTH": TREE_MAX_DEPTH,
             "TREE_MIN_DEPTH": TREE_MIN_DEPTH,
-            "DATA_DIMENSION": DATA_DIMENSION,
             "NON_TERMINAL_PROB": NON_TERMINAL_PROB,
             "TERMINAL_PROB": TERMINAL_PROB,
             "POPULATION_SIZE": self.population_size,
@@ -328,9 +319,8 @@ class Simulation:
             "ELITISM_SIZE": self.elitism_size,
             "NORMALIZATION_METHOD": str(NORMALIZATION_METHOD),
             "NON_TERMINAL": NON_TERMINAL,
-            "TERMINAL": TERMINAL,
-            "BREAST_CANCER_TEST_DATASET": BREAST_CANCER_TEST_DATASET,
-            "BREAST_CANCER_TRAIN_DATASET": BREAST_CANCER_TRAIN_DATASET,
+            "TERMINAL": self.terminals,
+            "DATASET": self.dataset,
         }
 
         with open(self.json_filename, "w") as json_file:
@@ -343,30 +333,22 @@ class Simulation:
         if self.train_data is None or self.train_true_labels is None:
             raise ValueError("Data or true labels not loaded")
 
-        sim_time = time.time()
-        population = generate_initial_population(self.population_size, "half_and_half")
+        population = generate_initial_population(
+            self.population_size, self.terminals, "half_and_half"
+        )
 
         self.handle_duplicate_genes(population)
 
         self.evaluate_population(population, workers=multi_processing_workers)
 
-        # Ensure all genes are within the height bounds and have a fitness value
-        for gene in population:
-            assert (
-                gene.height <= TREE_MAX_DEPTH and gene.height >= TREE_MIN_DEPTH
-            ), f"Gene height is out of bounds [{TREE_MIN_DEPTH}, {TREE_MAX_DEPTH}]: {gene.height}"
-
-            assert gene.fitness is not None, "Gene fitness is None"
-
         # Evaluate the initial population
         best_genes = self._run_evolution(
-            population, N_BEST, multi_processing_workers=multi_processing_workers
+            population,
+            self.population_size,
+            multi_processing_workers=multi_processing_workers,
         )
 
         self._run_test(best_genes)
-
-        total_sim_time = time.time() - sim_time
-        self._write_log(f"Simulation took {total_sim_time:.2f} s")
 
     def _run_evolution(
         self, population, n_best_fitness, multi_processing_workers=None
@@ -386,9 +368,6 @@ class Simulation:
         generation_times = []
 
         for generation in range(1, self.num_generations + 1):
-            self._write_log(f"Generation: {generation}")
-            self._write_log(f"Population size: {len(population)}")
-
             start_time = time.time()
 
             # Elitism: Keep the best ELITISM_SIZE genes from the previous generation
@@ -397,6 +376,7 @@ class Simulation:
             # Get the childs and the new seed sequence
             childs, seed_sequence = self.generate_childs(
                 population,
+                self.terminals,
                 seed_sequence,
                 self.crossovers_by_generation,
                 self.crossover_prob,
@@ -404,14 +384,13 @@ class Simulation:
                 workers=multi_processing_workers,
             )
 
-            self._write_log(f"Generated childs: {len(childs)}")
-
             replaced_genes = set()
 
             # Add the child to the new generation only if it is better than its parents
             # and remove the worst parent
             for child, (selected1, selected2) in childs:
                 worst_parent = min(selected1, selected2)
+
                 if child > worst_parent and worst_parent not in replaced_genes:
                     new_population.append(child)
                     replaced_genes.add(worst_parent)
@@ -432,12 +411,6 @@ class Simulation:
 
             self.evaluate_generation(population, generation, time_taken)
 
-            print_line()
-
-        self._write_log(f"Avg. generation time: {np.mean(generation_times):.2f} s")
-        self._write_log(f"Normalization method: {NORMALIZATION_METHOD}")
-        self._write_log(f"Finished evolution")
-
         return self.get_unique_best(n_best_fitness, population)
 
     def _run_test(self, best_genes):
@@ -447,15 +420,32 @@ class Simulation:
         @param best_gene: The best genes found
         """
         self._write_raw_log("-" * 200 + "\n")
-        self._write_raw_log("Ranking|TestFitness|TrainFitness|GeneTreeHeight\n")
+        self._write_raw_log(
+            "RankingTrain|RankingTest|TrainFitness|TestFitness|GeneTreeHeight\n"
+        )
+
+        test_fitness = []
 
         for i, gene in enumerate(best_genes, start=1):
-            # Evaluate the test data
-            test_fitness = evaluate_fitness(gene, self.test_data, self.test_true_labels)
+            test_fitness_value = evaluate_fitness(
+                gene, self.test_data, self.test_true_labels
+            )
+            test_fitness.append((gene, test_fitness_value, i))
 
-            self._write_log(f"Top {i} gene:")
-            self._write_log(f"|> Test fitness:  {test_fitness}")
-            self._write_log(f"|> Train fitness: {gene.fitness}")
-            self._write_log(f"|> Tree height:   {gene.height}")
+        test_fitness.sort(key=lambda x: x[1], reverse=True)
 
-            self._write_raw_log(f"{i}|{test_fitness}|{gene.fitness}|{gene.height}\n")
+        test_fitness_with_ranks = []
+
+        for rankTest, (gene, test_fitness_value, rankTrain) in enumerate(
+            test_fitness, start=1
+        ):
+            test_fitness_with_ranks.append(
+                (gene, test_fitness_value, rankTest, rankTrain)
+            )
+
+        test_fitness_with_ranks.sort(key=lambda x: x[3])
+
+        for gene, test_fitness_value, rankTest, rankTrain in test_fitness_with_ranks:
+            self._write_raw_log(
+                f"{rankTrain}|{rankTest}|{gene.fitness}|{test_fitness_value}|{gene.height}\n"
+            )

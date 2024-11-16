@@ -67,6 +67,12 @@ def main():
         type=str,
         help="Simulation identifier. Used to save the simulation data. Default is the current timestamp",
     )
+    parser.add_argument(
+        "-d",
+        "--dataset",
+        type=str,
+        help="Dataset to use. Options are 'BCC' and 'WR'",
+    )
 
     args = parser.parse_args()
 
@@ -87,6 +93,7 @@ def main():
         mutation_prob=args.mutation_prob,
         tournament_size=args.tournament_size,
         elitism_size=elitism_size,
+        dataset=args.dataset,
         simulation_id=simulation_id
     )
 

@@ -10,5 +10,8 @@ LOG_FOLDER = "log/"
 BREAST_CANCER_TEST_DATASET = DATA_FOLDER + "breast_cancer_coimbra_test.csv"
 BREAST_CANCER_TRAIN_DATASET = DATA_FOLDER + "breast_cancer_coimbra_train.csv"
 
+WINE_RED_TEST_DATASET = DATA_FOLDER + "wineRed-test.csv"
+WINE_RED_TRAIN_DATASET = DATA_FOLDER + "wineRed-train.csv"
+
 LOG_FILE_SUFFIX = "sim"
 REPRODUCIBILITY_FILE_SUFFIX = "repro"

@@ -6,29 +6,18 @@
 
 from enum import Enum
 
-N_BEST = 5
-
 TREE_MAX_DEPTH = 7
 TREE_MIN_DEPTH = 3
 
 assert TREE_MAX_DEPTH >= TREE_MIN_DEPTH and TREE_MIN_DEPTH > 0, "Invalid tree depth"
 
-DATA_DIMENSION = 9
-
 NON_TERMINAL_PROB = 0.5
 TERMINAL_PROB = 1 - NON_TERMINAL_PROB
 
 NON_TERMINAL = ["+", "-", "*", "/"]
-TERMINAL = [
-    "x0",
-    "x1",
-    "x2",
-    "x3",
-    "x4",
-    "x5",
-    "x6",
-    "x7",
-    "x8",
+
+# The base of the terminal set is the range of the data dimension
+TERMINAL_BASE = [
     "1",
     "2",
     "3",
@@ -50,4 +39,4 @@ class NormalizationMethod(Enum):
         return self.value
 
 
-NORMALIZATION_METHOD = NormalizationMethod.MIN_MAX
+NORMALIZATION_METHOD = NormalizationMethod.STANDARD

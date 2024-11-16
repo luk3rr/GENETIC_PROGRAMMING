@@ -10,14 +10,14 @@ from typing import Tuple
 from colorama import Fore, Style
 from typing import List, Tuple
 
-from .parameters import DATA_DIMENSION, NON_TERMINAL
+from .parameters import NON_TERMINAL
 
 
 def print_line():
     print("-" * 80)
 
 
-def read_data_from_csv(file_path) -> List[Tuple[int, list]]:
+def read_data_from_csv(file_path, data_dimension) -> List[Tuple[int, list]]:
     """
     Reads the data from a CSV file
 
@@ -36,8 +36,8 @@ def read_data_from_csv(file_path) -> List[Tuple[int, list]]:
         next(csv_reader)
 
         for row in csv_reader:
-            values = [float(value) for value in row[:DATA_DIMENSION]]
-            label = int(row[DATA_DIMENSION])
+            values = [float(value) for value in row[:data_dimension]]
+            label = int(row[data_dimension])
             data.append((label, values))
 
     return data

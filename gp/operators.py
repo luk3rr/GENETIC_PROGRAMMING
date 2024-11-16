@@ -9,7 +9,7 @@ from typing import Tuple
 
 import numpy as np
 
-from gp.utils import calculate_tree_height, print_tree, update_nodes_depth
+from gp.utils import update_nodes_depth
 
 from .gene import Gene
 from .population import (
@@ -20,7 +20,7 @@ from .population import (
     selection_tournament,
     evaluate_fitness,
 )
-from .parameters import TERMINAL, NON_TERMINAL, TREE_MAX_DEPTH
+from .parameters import NON_TERMINAL, TREE_MAX_DEPTH
 
 
 def crossover(parent1, parent2) -> Gene:
@@ -61,7 +61,7 @@ def crossover(parent1, parent2) -> Gene:
     return child_base
 
 
-def one_point_mutation(gene):
+def one_point_mutation(gene, terminals):
     """
     Perform a one-point mutation in the gene
 
@@ -70,7 +70,7 @@ def one_point_mutation(gene):
     subtree = select_random_subtree(gene)
 
     if subtree.is_leaf():
-        subtree.value = np.random.choice(TERMINAL)
+        subtree.value = np.random.choice(terminals)
     else:
         subtree.value = np.random.choice(NON_TERMINAL)
 
@@ -81,7 +81,7 @@ def one_point_mutation(gene):
     ), "Gene height is greater than the max depth."
 
 
-def expand_mutation(gene):
+def expand_mutation(gene, terminals):
     """
     Perform an expand mutation in the gene
 
@@ -103,7 +103,7 @@ def expand_mutation(gene):
     )
 
     # Generate a random tree with half and half method and the depth value
-    new_random = generate_random_tree(grow, depth, depth, depth)
+    new_random = generate_random_tree(grow, terminals, depth, depth, depth)
 
     leaf.value = new_random.value
     leaf.left = new_random.left
@@ -116,7 +116,7 @@ def expand_mutation(gene):
     ), f"Gene height is greater than the max depth:"
 
 
-def shrink_mutation(gene):
+def shrink_mutation(gene, terminals):
     """
     Perform a shrink mutation in the gene
 
@@ -126,22 +126,22 @@ def shrink_mutation(gene):
 
     subtree.left = None
     subtree.right = None
-    subtree.value = np.random.choice(TERMINAL)
+    subtree.value = np.random.choice(terminals)
 
     gene.calculate_tree_height()
 
 
-def mutate(gene, strategy=one_point_mutation):
+def mutate(gene, terminals, strategy=one_point_mutation):
     """
     Mutate a gene
 
     @param gene: The gene to mutate
     @param strategy: The mutation strategy
     """
-    strategy(gene)
+    strategy(gene, terminals)
 
 
-def mutate_random_strategy(gene):
+def mutate_random_strategy(gene, terminals):
     """
     Mutate a gene with a random mutation strategy
 
@@ -150,11 +150,11 @@ def mutate_random_strategy(gene):
     strategy = np.random.choice(
         np.array([one_point_mutation, expand_mutation, shrink_mutation])
     )
-    mutate(gene, strategy)
+    mutate(gene, terminals, strategy)
 
 
 def generate_child(
-    population, data, true_labels, tournament_size, crossover_prob, mutation_prob, seed
+        population, terminals, data, true_labels, tournament_size, crossover_prob, mutation_prob, seed
 ) -> Tuple[Gene, Tuple[Gene, Gene]] | None:
     """
     Generates a new child by selecting two parents, applying crossover and mutation, and evaluating fitness.
@@ -181,7 +181,7 @@ def generate_child(
 
         # Apply mutation with the given probability
         if np.random.random() < mutation_prob:
-            mutate_random_strategy(child)
+            mutate_random_strategy(child, terminals)
 
         # Evaluate the child's fitness
         child.fitness = evaluate_fitness(child, data, true_labels)
