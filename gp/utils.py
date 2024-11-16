@@ -69,6 +69,34 @@ def are_trees_equal(node1, node2):
     )
 
 
+def update_nodes_depth(node, current_depth=0):
+    """ """
+    if node is None:
+        return
+
+    # Define a profundidade do nó atual
+    node.depth = current_depth
+
+    # Calcula a altura das subárvores esquerda e direita
+    update_nodes_depth(node.left, current_depth + 1)
+    update_nodes_depth(node.right, current_depth + 1)
+
+
+def calculate_tree_height(node):
+    """
+    Helper method to calculate the height of a subtree
+
+    @param node: The root node of the subtree
+    """
+    if node is None:
+        return -1
+
+    left_height = calculate_tree_height(node.left)
+    right_height = calculate_tree_height(node.right)
+
+    return 1 + max(left_height, right_height)
+
+
 def print_tree(node, indent="", last="updown"):
     """
     Print the tree in a readable format

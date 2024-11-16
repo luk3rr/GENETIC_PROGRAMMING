@@ -16,7 +16,6 @@ from .parameters import (
     NON_TERMINAL,
     TREE_MAX_DEPTH,
     TREE_MIN_DEPTH,
-    TOURNAMENT_SIZE,
     TERMINAL_PROB,
 )
 
@@ -68,11 +67,15 @@ def select_random_subtree(gene, depth=None) -> Node:
                   If None, all nodes are eligible
                   Note: Used to prevent broating
     """
+    assert depth is None or (depth <= TREE_MAX_DEPTH), (
+        "Invalid depth value. "
+        "The depth must be less than or equal to the maximum depth of the tree"
+    )
+
     nodes = []
-    nodes.append(gene.root_node)
 
     if depth is None:
-        depth = gene.root_node.get_depth()
+        depth = gene.root_node.depth
 
     bfs(gene.root_node, 0, depth, nodes)
 
@@ -237,7 +240,7 @@ def generate_initial_population(population_size, strategy) -> List[Gene]:
 
 def selection_tournament(
     population,
-    tournament_size=TOURNAMENT_SIZE,
+    tournament_size,
     problem_type="max",
 ) -> Gene:
     """

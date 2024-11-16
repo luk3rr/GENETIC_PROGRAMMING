@@ -7,7 +7,7 @@
 import numpy as np
 
 from .parameters import DATA_DIMENSION
-
+from .utils import calculate_tree_height
 
 class Node:
     def __init__(self, value, depth, left=None, right=None):
@@ -32,14 +32,11 @@ class Node:
     def is_leaf(self):
         return self.left is None and self.right is None
 
-    def get_depth(self):
-        return self.depth
-
 
 class Gene:
     def __init__(self, tree):
         self.root_node = tree
-        self.height = self._calculate_tree_height(self.root_node)
+        self.height = calculate_tree_height(self.root_node)
         self.fitness: float = 0.0
 
     def __eq__(self, other):
@@ -81,19 +78,7 @@ class Gene:
         """
         Recalculate and update the height of the entire tree
         """
-        self.height = self._calculate_tree_height(self.root_node)
-
-    def _calculate_tree_height(self, node):
-        """
-        Helper method to calculate the height of a subtree
-        """
-        if node is None:
-            return -1  # Height of an empty tree is -1
-
-        left_height = self._calculate_tree_height(node.left)
-        right_height = self._calculate_tree_height(node.right)
-
-        return 1 + max(left_height, right_height)
+        self.height = calculate_tree_height(self.root_node)
 
     def get_distance_matrix(self, data) -> np.ndarray:
         """

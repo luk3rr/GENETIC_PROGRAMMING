@@ -9,9 +9,11 @@ from typing import Tuple
 
 import numpy as np
 
+from gp.utils import calculate_tree_height, print_tree, update_nodes_depth
+
 from .gene import Gene
 from .population import (
-    half_and_half,
+    grow,
     select_random_subtree,
     get_leaf_nodes,
     generate_random_tree,
@@ -29,27 +31,32 @@ def crossover(parent1, parent2) -> Gene:
     @param parent2: The second parent
     @return: The child gene
     """
-
     # Choose the max depth to prevent broating
-    height = min(parent1.height, parent2.height)
+    max_depth = min(parent1.height, parent2.height)
 
     # 0.5 of chance to choose parent 1 or parent 2 as the base for the child
     # Then choose a random node from the base and a random node from the other parent
     # and swap the nodes
     if np.random.random() < 0.5:
         child_base = deepcopy(parent1)
-        subtree_parent = select_random_subtree(parent2, height)
+        donor_parent = deepcopy(parent2)
     else:
         child_base = deepcopy(parent2)
-        subtree_parent = select_random_subtree(parent1, height)
+        donor_parent = deepcopy(parent1)
 
-    subtree_child = select_random_subtree(child_base, height)
+    subtree_child = select_random_subtree(child_base, max_depth)
+    subtree_donor = select_random_subtree(donor_parent, max_depth)
 
-    subtree_child.value = subtree_parent.value
-    subtree_child.left = subtree_parent.left
-    subtree_child.right = subtree_parent.right
+    subtree_child.value = subtree_donor.value
+    subtree_child.left = subtree_donor.left
+    subtree_child.right = subtree_donor.right
 
     child_base.calculate_tree_height()
+    update_nodes_depth(child_base.root_node)
+
+    assert (
+        child_base.height <= TREE_MAX_DEPTH
+    ), "Child height is greater than the max depth."
 
     return child_base
 
@@ -69,6 +76,10 @@ def one_point_mutation(gene):
 
     gene.calculate_tree_height()
 
+    assert (
+        gene.height <= TREE_MAX_DEPTH
+    ), "Gene height is greater than the max depth."
+
 
 def expand_mutation(gene):
     """
@@ -76,29 +87,33 @@ def expand_mutation(gene):
 
     @param gene: The gene to mutate
     """
-    subtree = select_random_subtree(gene)
-
     # Get all leaf nodes in the subtree and select a random one
     nodes = []
 
-    get_leaf_nodes(subtree, nodes)
+    get_leaf_nodes(gene.root_node, nodes)
 
     leaf = np.random.choice(nodes)
 
+    max_allowed_depth = TREE_MAX_DEPTH - leaf.depth
+
     depth = (
-        np.random.randint(1, TREE_MAX_DEPTH - leaf.get_depth())
-        if TREE_MAX_DEPTH > leaf.get_depth() + 1
+        np.random.randint(1, max_allowed_depth + 1)
+        if max_allowed_depth > 0
         else 0
     )
 
     # Generate a random tree with half and half method and the depth value
-    new_random = generate_random_tree(half_and_half, depth)
+    new_random = generate_random_tree(grow, depth, depth, depth)
 
     leaf.value = new_random.value
     leaf.left = new_random.left
     leaf.right = new_random.right
 
     gene.calculate_tree_height()
+
+    assert (
+        gene.height <= TREE_MAX_DEPTH
+    ), f"Gene height is greater than the max depth:"
 
 
 def shrink_mutation(gene):
@@ -139,7 +154,7 @@ def mutate_random_strategy(gene):
 
 
 def generate_child(
-    population, data, true_labels, crossover_prob, mutation_prob, seed
+    population, data, true_labels, tournament_size, crossover_prob, mutation_prob, seed
 ) -> Tuple[Gene, Tuple[Gene, Gene]] | None:
     """
     Generates a new child by selecting two parents, applying crossover and mutation, and evaluating fitness.
@@ -157,8 +172,8 @@ def generate_child(
     np.random.seed(seed)
 
     # Select two parents
-    parent1 = selection_tournament(population)
-    parent2 = selection_tournament(population)
+    parent1 = selection_tournament(population, tournament_size)
+    parent2 = selection_tournament(population, tournament_size)
 
     # Apply crossover with the given probability
     if np.random.random() < crossover_prob:
