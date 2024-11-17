@@ -81,7 +81,7 @@ run_experiment() {
 		-mp "$pm" \
 		-t "$tournament_size" \
         -d "$data" \
-        "${elitism_option[@]}" \
+        "${elitism_option[@]}" -w 12 \
 		-i "$identifier" >> "$PROGRAM_OUTPUT" 2> >(tee -a /dev/stderr)
 
     end_time=$(date +%s)

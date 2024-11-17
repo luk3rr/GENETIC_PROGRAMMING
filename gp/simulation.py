@@ -84,7 +84,8 @@ class Simulation:
         """
         with open(self.raw_log_filename, "w") as f:
             f.write(
-                "Generation|Population|DuplicatedGenes|BestFitness|WorstFitness|MeanFitness|MedianFitness|StdFitness|TimeTaken\n"
+                f"Generation|Population|DuplicatedGenes|GeneratedChilds|BetterChilds|"
+                f"WorstChilds|BestFitness|WorstFitness|MeanFitness|MedianFitness|StdFitness|TimeTaken\n"
             )
 
     def _write_raw_log(self, message):
@@ -131,7 +132,15 @@ class Simulation:
             case _:
                 raise ValueError("Invalid normalization method")
 
-    def evaluate_generation(self, population, generation_number, time_taken=None):
+    def evaluate_generation(
+        self,
+        population,
+        generation_number,
+        generated_childs,
+        better_childs,
+        worst_childs,
+        time_taken=None,
+    ):
         """
         Evaluate the fitness of the population and log the stats.
         """
@@ -145,9 +154,9 @@ class Simulation:
 
         # Write the raw log
         self._write_raw_log(
-            f"{generation_number}|{len(population)}|{duplicated}|{best_gene.fitness}|"
-            f"{worst_gene.fitness}|{mean_fitness}|{median_fitness}|"
-            f"{std_fitness}|{time_taken or 'N/A'}\n"
+            f"{generation_number}|{len(population)}|{duplicated}|{generated_childs}|"
+            f"{better_childs}|{worst_childs}|{best_gene.fitness}|{worst_gene.fitness}|"
+            f"{mean_fitness}|{median_fitness}|{std_fitness}|{time_taken or 'N/A'}\n"
         )
 
     def get_unique_best(self, n_best_fitness, population) -> List[Gene]:
@@ -204,8 +213,6 @@ class Simulation:
                 population[index] = new_genes[i]
 
             total_replaced_genes += duplicated_genes
-
-        print(f"Replaced {total_replaced_genes} duplicated genes")
 
         return total_replaced_genes
 
@@ -327,13 +334,7 @@ class Simulation:
             self.config.population_size, "half_and_half"
         )
 
-        time_handle_duplicate_genes = time.time()
-
         self.handle_duplicate_genes(population)
-
-        print(
-            f"Time to handle duplicate genes: {time.time() - time_handle_duplicate_genes}"
-        )
 
         self.evaluate_population(population)
 
@@ -358,31 +359,35 @@ class Simulation:
             # Elitism: Keep the best ELITISM_SIZE genes from the previous generation
             new_population = heapq.nlargest(self.config.elitism_size, population)
 
-            time_generate_childs = time.time()
-
             # Get the childs and the new seed sequence
             childs = self.generate_childs(
                 population,
                 self.config.crossovers_by_generation,
             )
 
-            print(f"Time to generate childs: {time.time() - time_generate_childs}")
-            print(f"Number of childs: {len(childs)}")
+            generated_childs = len(childs)
 
             replaced_genes = set()
 
-            time_evaluate_childs = time.time()
+            # Count the number of better and worst childs
+            better_childs = 0
+            worst_childs = 0
 
             # Add the child to the new generation only if it is better than its parents
             # and remove the worst parent
             for child, (selected1, selected2) in childs:
                 worst_parent = min(selected1, selected2)
 
+                parents_median_fitness = (selected1.fitness + selected2.fitness) / 2
+
+                if child.fitness > parents_median_fitness:
+                    better_childs += 1
+                else:
+                    worst_childs += 1
+
                 if child > worst_parent and worst_parent not in replaced_genes:
                     new_population.append(child)
                     replaced_genes.add(worst_parent)
-
-            print(f"Time to evaluate childs: {time.time() - time_evaluate_childs}")
 
             # Ensure we select the correct number of additional genes to reach POPULATION_SIZE
             remaining_needed = self.config.population_size - len(new_population)
@@ -398,7 +403,14 @@ class Simulation:
             time_taken = time.time() - start_time
             generation_times.append(time_taken)
 
-            self.evaluate_generation(population, generation, time_taken)
+            self.evaluate_generation(
+                population,
+                generation,
+                generated_childs,
+                better_childs,
+                worst_childs,
+                time_taken,
+            )
 
         return self.get_unique_best(n_best_fitness, population)
 
