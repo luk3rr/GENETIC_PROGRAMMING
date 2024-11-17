@@ -8,11 +8,11 @@ PROGRAM_OUTPUT="output.txt"
 
 PROGRAM="python3 ./main.py"
 
-DATASETS="BCC" # WR
+DATASETS="BCC"
 SEEDS="381221029 123456789 987654321 135792468 246813579 102938475 564738291 819273645 111213141 151617181"
 THREAD_INITIAL_SEED="40028922"
 ENABLE_ELITISM="1 0"
-POPULATION_SIZES="100 200" #"25 50 100 200"
+POPULATION_SIZES="25 50 100 200"
 GENERATIONS="10 20 40 80"
 CROSSOVER_RATES="0.9 0.6"
 MUTATION_RATES="0.05 0.3"
@@ -35,7 +35,6 @@ total_experiments=$((
     $(echo "$TOURNAMENT_SIZES" | wc -w)
 ))
 
-# Contador de experimentos
 current_experiment=0
 
 run_experiment() {
@@ -91,7 +90,7 @@ run_experiment() {
     echo "Experiment $identifier ran in $elapsed_time seconds."
 }
 
-start_time=$(date +%s)
+experiments_start_time=$(date +%s)
 
 for dataset in $DATASETS; do
     for seed in $SEEDS; do
@@ -118,7 +117,7 @@ for dataset in $DATASETS; do
     done
 done
 
-end_time=$(date +%s)
+experiments_end_time=$(date +%s)
 
 echo "All experiments finished!"
-echo "Total time elapsed: $((end_time - start_time)) seconds."
+echo "Total time elapsed: $((experiments_end_time - experiments_start_time)) seconds."
