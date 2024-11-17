@@ -4,70 +4,33 @@
 # Created on: November 17, 2024
 # Author: Lucas Araújo <araujolucas@dcc.ufmg.br>
 
+"""
+Summarize the evolutionary data from the experiments and save the summary data in CSV files
+"""
+
 import os
 import pandas as pd
 import numpy as np
 from scipy.stats import spearmanr
 from io import StringIO
 
-LOG_FOLDER = "testlog/"
-OUTPUT_FOLDER = "processed/"
-
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-
-ID_PREFIX_LENGTH = 2
-EXPERIMENT_ROUNDS = 10
-
-TRAINING_SUMMARY_CSV = "training_summary.csv"
-RANKING_SUMMARY_CSV = "ranking_summary.csv"
-
-# Mapping between the identifier prefix and the identifier name
-IDENTIFIER_NAMES = {
-    "SD": "seed",
-    "PS": "population_size",
-    "GS": "generations",
-    "PC": "crossover_rate",
-    "PM": "mutation_rate",
-    "TS": "tournament_size",
-    "EE": "elitism_enabled",
-}
-
-# All data are mean values
-RANKING_SUMMARY_COLUMNS = [
-    "ExperimentId",
-    "BestFitnessOnTest", # Best fitness on test data
-    "MeanFitnessOnTest", # Mean fitness on test data
-    "StdFitnessOnTest",  # Standard deviation of fitness on test data
-    "BestFitnessOnTraining", # Best fitness on training data
-    "MeanFitnessOnTraining", # Mean fitness on training data
-    "StdFitnessOnTraining",  # Standard deviation of fitness on training data
-    "BestGeneTestPositionOnTraining", # Best gene on test data position on training data
-    "BestGeneTrainingPositionOnTest", # Best gene on training data position on test data
-    "BestGeneTestHeight", # Best gene on test data height
-    "BestGeneTrainingHeight", # Best gene on training data height
-    "RMSE", # Root Mean Squared Error between test and training data
-    "SpearmansCorrelation", # Spearmans correlation between ranking of test and training data
-]
-
-# All data are mean values
-TRAINING_SUMMARY_COLUMNS = [
-    "ExperimentId",
-    "DuplicatedGenes", # Number of duplicated genes in each generation
-    "GeneratedChilds", # Number of generated childs in each generation
-    "BetterChilds", # Number of childs with fitness better than the mean fitness of the parents in each generation
-    "WorstChilds", # Number of childs with fitness worse than the mean fitness of the parents in each generation
-    "BestFitness", # Best fitness in each generation
-    "WorstFitness", # Worst fitness in each generation
-    "MeanFitness", # Mean fitness in each generation
-    "MedianFitness", # Median fitness in each generation
-    "StdFitness", # Standard deviation of fitness in each generation
-    "TimeTaken", # Time taken to process each generation
-]
-
+from .constants import (
+    OUTPUT_FOLDER,
+    TRAINING_SUMMARY_CSV,
+    RANKING_SUMMARY_CSV,
+    IDENTIFIER_NAMES,
+    ID_PREFIX_LENGTH,
+    EXPERIMENT_ROUNDS,
+)
 
 
 def training_summary(df_generation) -> dict:
-    """ """
+    """
+    Summarize the training data
+
+    @param df_generation: the DataFrame with the training data
+    @return: a dictionary with the summary data
+    """
     # Mensure the mean of all columns and save it
     mean_values = pd.concat(df_generation).mean()
 
@@ -177,9 +140,12 @@ def parse_experiment_id(filename) -> dict:
     return experiment_data
 
 
-def get_experiment_id_from_file(file_path):
+def get_experiment_id_from_file(file_path) -> str:
     """
-    Retorna o identificador do experimento a partir do caminho do arquivo
+    Get the experiment id from the file path
+
+    @param file_path: the path to the experiment file
+    @return: the experiment id
     """
     file_name = os.path.basename(file_path)
 
@@ -243,8 +209,14 @@ def process_experiment_logs(
     log_folder, output_folder=OUTPUT_FOLDER, output_file=TRAINING_SUMMARY_CSV
 ):
     """
-    Processa todos os arquivos na pasta de logs e salva dados consolidados.
+    Process all the experiment logs and save the summary data
+
+    @param log_folder: the folder with the log files
+    @param output_folder: the folder to save the summary data
+    @param output_file: the name of the output file
     """
+    os.makedirs(output_folder, exist_ok=True)
+
     experiments = get_all_experiments(log_folder)
     training_summary_data = []
     ranking_summary_data = []
@@ -298,11 +270,3 @@ def process_experiment_logs(
     ranking_summary_df.to_csv(
         os.path.join(output_folder, RANKING_SUMMARY_CSV), index=False, sep="|"
     )
-
-
-def main():
-    process_experiment_logs(LOG_FOLDER)
-
-
-if __name__ == "__main__":
-    main()

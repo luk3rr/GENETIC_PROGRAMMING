@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
-# Filename: main.py
+# Filename: __main__.py
 # Created on: November 12, 2024
 # Author: Lucas Araújo <araujolucas@dcc.ufmg.br>
 
 from multiprocessing import cpu_count
-from gp.simulation import Simulation
-from gp.parameters import SimulationConfig
+from .simulation import Simulation
+from .parameters import SimulationConfig
 
 
 def main():
