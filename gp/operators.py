@@ -20,7 +20,7 @@ from .population import (
     selection_tournament,
     evaluate_fitness,
 )
-from .parameters import NON_TERMINAL, TREE_MAX_DEPTH
+from .parameters import NON_TERMINAL, TREE_MAX_DEPTH, SimulationConfig
 
 
 def crossover(parent1, parent2) -> Gene:
@@ -51,7 +51,10 @@ def crossover(parent1, parent2) -> Gene:
     subtree_child.left = subtree_donor.left
     subtree_child.right = subtree_donor.right
 
+    # Update gene atributtes after modification
     child_base.calculate_tree_height()
+    child_base.build_infix_expr()
+
     update_nodes_depth(child_base.root_node)
 
     assert (
@@ -61,7 +64,7 @@ def crossover(parent1, parent2) -> Gene:
     return child_base
 
 
-def one_point_mutation(gene, terminals):
+def one_point_mutation(gene):
     """
     Perform a one-point mutation in the gene
 
@@ -69,19 +72,19 @@ def one_point_mutation(gene, terminals):
     """
     subtree = select_random_subtree(gene)
 
+    config = SimulationConfig().get_args()
+
     if subtree.is_leaf():
-        subtree.value = np.random.choice(terminals)
+        subtree.value = np.random.choice(config.terminals)
     else:
         subtree.value = np.random.choice(NON_TERMINAL)
 
     gene.calculate_tree_height()
 
-    assert (
-        gene.height <= TREE_MAX_DEPTH
-    ), "Gene height is greater than the max depth."
+    assert gene.height <= TREE_MAX_DEPTH, "Gene height is greater than the max depth."
 
 
-def expand_mutation(gene, terminals):
+def expand_mutation(gene):
     """
     Perform an expand mutation in the gene
 
@@ -96,14 +99,10 @@ def expand_mutation(gene, terminals):
 
     max_allowed_depth = TREE_MAX_DEPTH - leaf.depth
 
-    depth = (
-        np.random.randint(1, max_allowed_depth + 1)
-        if max_allowed_depth > 0
-        else 0
-    )
+    depth = np.random.randint(1, max_allowed_depth + 1) if max_allowed_depth > 0 else 0
 
     # Generate a random tree with half and half method and the depth value
-    new_random = generate_random_tree(grow, terminals, depth, depth, depth)
+    new_random = generate_random_tree(grow, depth, depth, depth)
 
     leaf.value = new_random.value
     leaf.left = new_random.left
@@ -111,37 +110,37 @@ def expand_mutation(gene, terminals):
 
     gene.calculate_tree_height()
 
-    assert (
-        gene.height <= TREE_MAX_DEPTH
-    ), f"Gene height is greater than the max depth:"
+    assert gene.height <= TREE_MAX_DEPTH, f"Gene height is greater than the max depth:"
 
 
-def shrink_mutation(gene, terminals):
+def shrink_mutation(gene):
     """
     Perform a shrink mutation in the gene
 
     @param gene: The gene to mutate
     """
+    config = SimulationConfig().get_args()
+
     subtree = select_random_subtree(gene)
 
     subtree.left = None
     subtree.right = None
-    subtree.value = np.random.choice(terminals)
+    subtree.value = np.random.choice(config.terminals)
 
     gene.calculate_tree_height()
 
 
-def mutate(gene, terminals, strategy=one_point_mutation):
+def mutate(gene, strategy=one_point_mutation):
     """
     Mutate a gene
 
     @param gene: The gene to mutate
     @param strategy: The mutation strategy
     """
-    strategy(gene, terminals)
+    strategy(gene)
 
 
-def mutate_random_strategy(gene, terminals):
+def mutate_random_strategy(gene):
     """
     Mutate a gene with a random mutation strategy
 
@@ -150,11 +149,12 @@ def mutate_random_strategy(gene, terminals):
     strategy = np.random.choice(
         np.array([one_point_mutation, expand_mutation, shrink_mutation])
     )
-    mutate(gene, terminals, strategy)
+    mutate(gene, strategy)
+    gene.build_infix_expr()
 
 
 def generate_child(
-        population, terminals, data, true_labels, tournament_size, crossover_prob, mutation_prob, seed
+    population, data, true_labels, seed
 ) -> Tuple[Gene, Tuple[Gene, Gene]] | None:
     """
     Generates a new child by selecting two parents, applying crossover and mutation, and evaluating fitness.
@@ -162,8 +162,6 @@ def generate_child(
     @param population: The current population of genes
     @param data: The data to use for fitness evaluation
     @param true_labels: The true labels to use for fitness evaluation
-    @param crossover_prob: The probability of applying crossover
-    @param mutation_prob: The probability of applying mutation
     @param seed: The seed to use for random number generation
     NOTE: If this function is parallelized with ThreadPoolExecutor, the seed defined
           here will override the global seed. Therefore, parallelize with ProcessPoolExecutor.
@@ -171,17 +169,19 @@ def generate_child(
     """
     np.random.seed(seed)
 
+    config = SimulationConfig().get_args()
+
     # Select two parents
-    parent1 = selection_tournament(population, tournament_size)
-    parent2 = selection_tournament(population, tournament_size)
+    parent1 = selection_tournament(population)
+    parent2 = selection_tournament(population)
 
     # Apply crossover with the given probability
-    if np.random.random() < crossover_prob:
+    if np.random.random() < config.crossover_prob:
         child = crossover(parent1, parent2)
 
         # Apply mutation with the given probability
-        if np.random.random() < mutation_prob:
-            mutate_random_strategy(child, terminals)
+        if np.random.random() < config.mutation_prob:
+            mutate_random_strategy(child)
 
         # Evaluate the child's fitness
         child.fitness = evaluate_fitness(child, data, true_labels)

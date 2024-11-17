@@ -16,6 +16,7 @@ from .parameters import (
     TREE_MAX_DEPTH,
     TREE_MIN_DEPTH,
     TERMINAL_PROB,
+    SimulationConfig,
 )
 
 
@@ -81,7 +82,7 @@ def select_random_subtree(gene, depth=None) -> Node:
     return np.random.choice(nodes)
 
 
-def grow(min_depth, max_depth, terminals) -> Node:
+def grow(min_depth, max_depth) -> Node:
     """
     Grow strategy for the genetic programming algorithm
 
@@ -89,10 +90,10 @@ def grow(min_depth, max_depth, terminals) -> Node:
     @param depth: The max depth of the tree
     @return: A random node with depth between min_depth and max_depth
     """
-    return _grow(0, min_depth, max_depth, terminals)
+    return _grow(0, min_depth, max_depth)
 
 
-def _grow(current_depth, min_depth, max_depth, terminals) -> Node:
+def _grow(current_depth, min_depth, max_depth) -> Node:
     """
     Grow strategy for the genetic programming algorithm
 
@@ -101,16 +102,18 @@ def _grow(current_depth, min_depth, max_depth, terminals) -> Node:
     @param max_depth: The max depth of the tree
     @return: A random node with depth between min_depth and max_depth
     """
+    config = SimulationConfig().get_args()
+
     if current_depth == max_depth:
-        return Node(np.random.choice(terminals), depth=current_depth)
+        return Node(np.random.choice(config.terminals), depth=current_depth)
 
     # The terminals have a probability of being chosen only
     # if the minimum depth is reached
     if current_depth >= min_depth and np.random.random() < TERMINAL_PROB:
-        return Node(np.random.choice(terminals), depth=current_depth)
+        return Node(np.random.choice(config.terminals), depth=current_depth)
 
-    left = _grow(current_depth + 1, min_depth, max_depth, terminals)
-    right = _grow(current_depth + 1, min_depth, max_depth, terminals)
+    left = _grow(current_depth + 1, min_depth, max_depth)
+    right = _grow(current_depth + 1, min_depth, max_depth)
 
     return Node(
         np.random.choice(NON_TERMINAL),
@@ -120,7 +123,7 @@ def _grow(current_depth, min_depth, max_depth, terminals) -> Node:
     )
 
 
-def full(depth, terminals) -> Node:
+def full(depth) -> Node:
     """
     Full strategy for the genetic programming algorithm
 
@@ -130,21 +133,23 @@ def full(depth, terminals) -> Node:
     if depth > TREE_MAX_DEPTH:
         raise ValueError("Invalid depth")
 
-    return _full(0, depth, terminals)
+    return _full(0, depth)
 
 
-def _full(current_depth, max_depth, terminals) -> Node:
+def _full(current_depth, max_depth) -> Node:
     """
     Full strategy for the genetic programming algorithm
 
     @param depth: The current depth of the tree
     @return: A random node
     """
-    if current_depth == max_depth:
-        return Node(np.random.choice(terminals), depth=max_depth)
+    config = SimulationConfig().get_args()
 
-    left = _full(current_depth + 1, max_depth, terminals)
-    right = _full(current_depth + 1, max_depth, terminals)
+    if current_depth == max_depth:
+        return Node(np.random.choice(config.terminals), depth=max_depth)
+
+    left = _full(current_depth + 1, max_depth)
+    right = _full(current_depth + 1, max_depth)
 
     return Node(
         np.random.choice(NON_TERMINAL),
@@ -154,7 +159,7 @@ def _full(current_depth, max_depth, terminals) -> Node:
     )
 
 
-def half_and_half(depth, min_depth, max_depth, terminals) -> Node:
+def half_and_half(depth, min_depth, max_depth) -> Node:
     """
     Half-and-half strategy for the genetic programming algorithm
 
@@ -163,11 +168,11 @@ def half_and_half(depth, min_depth, max_depth, terminals) -> Node:
     @param max_depth: The max depth of the tree if grow strategy is selected
     @return: A random node
     """
-    return grow(min_depth, max_depth, terminals) if np.random.random() < 0.5 else full(depth, terminals)
+    return grow(min_depth, max_depth) if np.random.random() < 0.5 else full(depth)
 
 
 def generate_random_tree(
-        strategy, terminals, depth, min_depth=TREE_MIN_DEPTH, max_depth=TREE_MAX_DEPTH
+    strategy, depth, min_depth=TREE_MIN_DEPTH, max_depth=TREE_MAX_DEPTH
 ) -> Node:
     """
     Generate a random tree with the given depth
@@ -179,34 +184,35 @@ def generate_random_tree(
     @return: A random tree
     """
     if strategy == grow:
-        return grow(min_depth, max_depth, terminals)
+        return grow(min_depth, max_depth)
 
     elif strategy == full:
-        return full(depth, terminals)
+        return full(depth)
 
     elif strategy == half_and_half:
-        return half_and_half(depth, min_depth, max_depth, terminals)
+        return half_and_half(depth, min_depth, max_depth)
 
     else:
         raise ValueError("Invalid strategy")
 
 
-def generate_initial_population(population_size, terminals, strategy) -> List[Gene]:
+def generate_initial_population(population_size, strategy) -> List[Gene]:
     """
     Generate the initial population of the genetic programming algorithm
 
     @param population_size: The size of the population
+    @param strategy: The strategy to generate the initial population
     @return: A list with the initial population
     """
     if strategy == "grow":
         return [
-            Gene(generate_random_tree(grow, terminals, TREE_MAX_DEPTH))
+            Gene(generate_random_tree(grow, TREE_MAX_DEPTH))
             for _ in range(population_size)
         ]
 
     elif strategy == "full":
         return [
-            Gene(generate_random_tree(full, terminals, TREE_MAX_DEPTH))
+            Gene(generate_random_tree(full, TREE_MAX_DEPTH))
             for _ in range(population_size)
         ]
 
@@ -221,13 +227,13 @@ def generate_initial_population(population_size, terminals, strategy) -> List[Ge
         # Generate genes at each depth with the half-and-half strategy
         for depth in range(TREE_MIN_DEPTH, TREE_MAX_DEPTH):
             population += [
-                Gene(generate_random_tree(half_and_half, terminals, depth))
+                Gene(generate_random_tree(half_and_half, depth))
                 for _ in range(genes_per_depth)
             ]
 
         # Generate the remaining genes
         population += [
-            Gene(generate_random_tree(half_and_half, terminals, TREE_MAX_DEPTH))
+            Gene(generate_random_tree(half_and_half, TREE_MAX_DEPTH))
             for _ in range(remaining)
         ]
 
@@ -239,7 +245,6 @@ def generate_initial_population(population_size, terminals, strategy) -> List[Ge
 
 def selection_tournament(
     population,
-    tournament_size,
     problem_type="max",
 ) -> Gene:
     """
@@ -251,8 +256,10 @@ def selection_tournament(
     @return: The best gene selected
     NOTE: Ensure that the fitnesses of the genes are updated before calling this function
     """
+    config = SimulationConfig().get_args()
+
     # Random selection of the subset of genes for the tournament
-    tournament = np.random.choice(population, tournament_size, replace=False)
+    tournament = np.random.choice(population, config.tournament_size, replace=False)
 
     if problem_type == "min":
         return min(tournament, key=lambda gene: gene.fitness)

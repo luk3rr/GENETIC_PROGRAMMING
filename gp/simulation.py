@@ -26,6 +26,7 @@ from .parameters import (
     NORMALIZATION_METHOD,
     NON_TERMINAL,
     NormalizationMethod,
+    SimulationConfig,
 )
 
 from .constants import (
@@ -46,43 +47,21 @@ from .utils import read_data_from_csv
 
 
 class Simulation:
-    def __init__(
-        self,
-        seed,
-        thread_initial_seed,
-        population_size,
-        crossovers_by_generation,
-        num_generations,
-        crossover_prob,
-        mutation_prob,
-        tournament_size,
-        elitism_size,
-        dataset,
-        simulation_id=None,
-    ):
+    def __init__(self):
+        # Singleton instance
+        self.config = SimulationConfig().get_args()
+        self.thread_seed_sequence = self.config.thread_initial_seed
+
         # Data
-        self.dataset = dataset
         self.train_data = None
         self.train_true_labels = None
         self.test_data = None
         self.test_true_labels = None
 
         # Simulation parameters
-        self.seed = seed
-        self.thread_initial_seed = thread_initial_seed
-        self.population_size = population_size
-        self.crossovers_by_generation = crossovers_by_generation
-        self.num_generations = num_generations
-        self.crossover_prob = crossover_prob
-        self.mutation_prob = mutation_prob
-        self.tournament_size = tournament_size
-        self.elitism_size = elitism_size
+        np.random.seed(self.config.seed)  # Seed the random number generator
 
-        np.random.seed(self.seed)  # Seed the random number generator
-
-        self.terminals = None
-
-        if simulation_id is None:
+        if self.config.simulation_id is None:
             now = datetime.now()
 
             self.raw_log_filename = (
@@ -92,7 +71,7 @@ class Simulation:
             self.json_filename = f"{LOG_FOLDER}{now.strftime('%Y-%m-%d_%H-%M-%S')}_{REPRODUCIBILITY_FILE_SUFFIX}.json"
 
         else:
-            simulation_id = simulation_id.strip().replace(" ", "_")
+            simulation_id = self.config.simulation_id.strip().replace(" ", "_")
 
             self.raw_log_filename = f"{LOG_FOLDER}{simulation_id}_{LOG_FILE_SUFFIX}.dat"
             self.json_filename = (
@@ -113,14 +92,14 @@ class Simulation:
             f.write(message)
 
     def _load_data(self):
-        if self.dataset is None:
+        if self.config.dataset is None:
             raise ValueError("Dataset not provided")
 
-        if self.dataset == "BCC":
+        if self.config.dataset == "BCC":
             labeled_train_data = read_data_from_csv(BREAST_CANCER_TRAIN_DATASET, 9)
             labeled_test_data = read_data_from_csv(BREAST_CANCER_TEST_DATASET, 9)
 
-        elif self.dataset == "WR":
+        elif self.config.dataset == "WR":
             labeled_train_data = read_data_from_csv(WINE_RED_TRAIN_DATASET, 11)
             labeled_test_data = read_data_from_csv(WINE_RED_TRAIN_DATASET, 11)
 
@@ -134,7 +113,7 @@ class Simulation:
         self.test_data = [features for _, features in labeled_test_data]
 
         # Add the terminal values to the terminals list based on the number of features
-        self.terminals = [
+        self.config.terminals = [
             f"x{i}" for i in range(len(self.train_data[0]))
         ] + TERMINAL_BASE
 
@@ -162,7 +141,7 @@ class Simulation:
         best_gene = max(population)
         worst_gene = min(population)
 
-        duplicated = count_duplicated_genes(population)[0]
+        duplicated = 0  # count_duplicated_genes(population)[0]
 
         # Write the raw log
         self._write_raw_log(
@@ -210,9 +189,7 @@ class Simulation:
                 # No duplicated genes found, break the loop
                 break
 
-            new_genes = generate_initial_population(
-                duplicated_genes, self.terminals, "half_and_half"
-            )
+            new_genes = generate_initial_population(duplicated_genes, "half_and_half")
 
             if len(new_genes) != duplicated_genes:
                 raise ValueError(
@@ -228,163 +205,173 @@ class Simulation:
 
             total_replaced_genes += duplicated_genes
 
+        print(f"Replaced {total_replaced_genes} duplicated genes")
+
         return total_replaced_genes
 
-    def evaluate_population(self, population, workers=None):
+    def evaluate_population(self, population):
         """
         Evaluate the fitness of the population using a multi-processing approach
 
         @param population: The population to evaluate
-        @param workers: The number of workers to use. If None, uses the default number
-                        of workers (all)
         """
-        with ProcessPoolExecutor(max_workers=workers) as executor:
-            futures = {
-                executor.submit(
-                    evaluate_fitness, gene, self.train_data, self.train_true_labels
-                ): gene
-                for gene in population
-            }
+        if self.config.workers is not None:
+            with ProcessPoolExecutor(max_workers=self.config.workers) as executor:
+                futures = {
+                    executor.submit(
+                        evaluate_fitness, gene, self.train_data, self.train_true_labels
+                    ): gene
+                    for gene in population
+                }
 
-            for future in futures:
-                gene = futures[future]
-                gene.fitness = future.result()
+                for future in futures:
+                    gene = futures[future]
+                    gene.fitness = future.result()
+
+        else:
+            for gene in population:
+                gene.fitness = evaluate_fitness(
+                    gene, self.train_data, self.train_true_labels
+                )
 
     def generate_childs(
         self,
         population,
-        terminals,
-        seed_sequence,
         total_possible_crossovers,
-        cross_prob,
-        mut_prob,
-        workers=None,
-    ) -> Tuple[List[Tuple[Gene, Tuple[Gene, Gene]]], int]:
+    ) -> List[Tuple[Gene, Tuple[Gene, Gene]]]:
         """
         Generates the next generation of a given population in parallel.
 
         @param population: The current population
         @param total_possible_crossovers: The total number of possible crossovers
-        @param workers: The number of workers to use. If None, uses the default number
-                        of workers (all)
         @return: A list of tuples (child, (parent1, parent2)) for the new generation
         """
         childs = []
 
-        with ProcessPoolExecutor(max_workers=workers) as executor:
-            futures = []
+        if self.config.workers is not None:
 
-            for _ in range(total_possible_crossovers):
-                # Pass a unique seed to each process and increment for the next
-                seed_sequence += 1
+            with ProcessPoolExecutor(max_workers=self.config.workers) as executor:
+                futures = []
 
-                futures.append(
-                    executor.submit(
-                        generate_child,
-                        population,
-                        terminals,
-                        self.train_data,
-                        self.train_true_labels,
-                        self.tournament_size,
-                        cross_prob,
-                        mut_prob,
-                        seed_sequence,
+                for _ in range(total_possible_crossovers):
+                    # Pass a unique seed to each process and increment for the next
+                    self.thread_seed_sequence += 1
+
+                    futures.append(
+                        executor.submit(
+                            generate_child,
+                            population,
+                            self.train_data,
+                            self.train_true_labels,
+                            self.thread_seed_sequence,
+                        )
                     )
+
+                # Collect results, filtering out any None values where crossover did not occur
+                childs.extend(
+                    future.result() for future in futures if future.result() is not None
+                )
+        else:
+            for _ in range(total_possible_crossovers):
+                self.thread_seed_sequence += 1
+
+                child = generate_child(
+                    population,
+                    self.train_data,
+                    self.train_true_labels,
+                    self.thread_seed_sequence,
                 )
 
-            # Collect results, filtering out any None values where crossover did not occur
-            childs.extend(
-                future.result() for future in futures if future.result() is not None
-            )
+                if child is not None:
+                    childs.append(child)
 
-        return childs, seed_sequence
+        return childs
 
     def save_simulation_parameters(self):
         """
         Save the simulation parameters to the json file
         """
         data_to_save = {
-            "SEED": self.seed,
-            "THREAD_INITIAL_SEED": self.thread_initial_seed,
+            "SEED": self.config.seed,
+            "THREAD_INITIAL_SEED": self.config.thread_initial_seed,
             "TREE_MAX_DEPTH": TREE_MAX_DEPTH,
             "TREE_MIN_DEPTH": TREE_MIN_DEPTH,
             "NON_TERMINAL_PROB": NON_TERMINAL_PROB,
             "TERMINAL_PROB": TERMINAL_PROB,
-            "POPULATION_SIZE": self.population_size,
-            "CROSSOVERS_BY_GENERATION": self.crossovers_by_generation,
-            "NUM_GENERATIONS": self.num_generations,
-            "CROSSOVER_PROB": self.crossover_prob,
-            "MUTATION_PROB": self.mutation_prob,
-            "TOURNAMENT_SIZE": self.tournament_size,
-            "ELITISM_SIZE": self.elitism_size,
+            "POPULATION_SIZE": self.config.population_size,
+            "CROSSOVERS_BY_GENERATION": self.config.crossovers_by_generation,
+            "NUM_GENERATIONS": self.config.num_generations,
+            "CROSSOVER_PROB": self.config.crossover_prob,
+            "MUTATION_PROB": self.config.mutation_prob,
+            "TOURNAMENT_SIZE": self.config.tournament_size,
+            "ELITISM_SIZE": self.config.elitism_size,
             "NORMALIZATION_METHOD": str(NORMALIZATION_METHOD),
             "NON_TERMINAL": NON_TERMINAL,
-            "TERMINAL": self.terminals,
-            "DATASET": self.dataset,
+            "TERMINAL": self.config.terminals,
+            "DATASET": self.config.dataset,
         }
 
         with open(self.json_filename, "w") as json_file:
             json.dump(data_to_save, json_file, indent=4)
 
-    def run(self, multi_processing_workers=None):
+    def run(self):
         self._load_data()
         self._initialize_raw_log_file()
+
+        assert self.config.terminals is not None, "Terminals not loaded"
 
         if self.train_data is None or self.train_true_labels is None:
             raise ValueError("Data or true labels not loaded")
 
         population = generate_initial_population(
-            self.population_size, self.terminals, "half_and_half"
+            self.config.population_size, "half_and_half"
         )
+
+        time_handle_duplicate_genes = time.time()
 
         self.handle_duplicate_genes(population)
 
-        self.evaluate_population(population, workers=multi_processing_workers)
+        print(
+            f"Time to handle duplicate genes: {time.time() - time_handle_duplicate_genes}"
+        )
+
+        self.evaluate_population(population)
 
         # Evaluate the initial population
-        best_genes = self._run_evolution(
-            population,
-            self.population_size,
-            multi_processing_workers=multi_processing_workers,
-        )
+        best_genes = self._run_evolution(population, self.config.population_size)
 
         self._run_test(best_genes)
 
-    def _run_evolution(
-        self, population, n_best_fitness, multi_processing_workers=None
-    ) -> List[Gene]:
+    def _run_evolution(self, population, n_best_fitness) -> List[Gene]:
         """
         Run the evolution process
 
         @param population: The initial population
         @param n_best_fitness: The number of best fitness to keep
-        @param multi_processing_workers: The number of workers to use in the multi-processing
         @return: The best genes found
         """
-
-        # Seed sequence to ensure unique seeds for each process
-        seed_sequence = self.thread_initial_seed
-
         generation_times = []
 
-        for generation in range(1, self.num_generations + 1):
+        for generation in range(1, self.config.num_generations + 1):
             start_time = time.time()
 
             # Elitism: Keep the best ELITISM_SIZE genes from the previous generation
-            new_population = heapq.nlargest(self.elitism_size, population)
+            new_population = heapq.nlargest(self.config.elitism_size, population)
+
+            time_generate_childs = time.time()
 
             # Get the childs and the new seed sequence
-            childs, seed_sequence = self.generate_childs(
+            childs = self.generate_childs(
                 population,
-                self.terminals,
-                seed_sequence,
-                self.crossovers_by_generation,
-                self.crossover_prob,
-                self.mutation_prob,
-                workers=multi_processing_workers,
+                self.config.crossovers_by_generation,
             )
 
+            print(f"Time to generate childs: {time.time() - time_generate_childs}")
+            print(f"Number of childs: {len(childs)}")
+
             replaced_genes = set()
+
+            time_evaluate_childs = time.time()
 
             # Add the child to the new generation only if it is better than its parents
             # and remove the worst parent
@@ -395,8 +382,10 @@ class Simulation:
                     new_population.append(child)
                     replaced_genes.add(worst_parent)
 
+            print(f"Time to evaluate childs: {time.time() - time_evaluate_childs}")
+
             # Ensure we select the correct number of additional genes to reach POPULATION_SIZE
-            remaining_needed = self.population_size - len(new_population)
+            remaining_needed = self.config.population_size - len(new_population)
 
             # Get the genes that were not replaced
             additional_genes = [g for g in population if g not in new_population]

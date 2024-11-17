@@ -6,7 +6,11 @@
 
 import numpy as np
 
+from gp.parameters import SimulationConfig
+
 from .utils import calculate_tree_height
+from numexpr import evaluate
+
 
 class Node:
     def __init__(self, value, depth, left=None, right=None):
@@ -23,11 +27,6 @@ class Node:
         self.right = right
         self.depth = depth
 
-    def __hash__(self):
-        left_hash = hash(self.left) if self.left else 0
-        right_hash = hash(self.right) if self.right else 0
-        return hash((self.value, left_hash, right_hash))
-
     def is_leaf(self):
         return self.left is None and self.right is None
 
@@ -37,6 +36,7 @@ class Gene:
         self.root_node = tree
         self.height = calculate_tree_height(self.root_node)
         self.fitness: float = 0.0
+        self.expr = self.get_infix()
 
     def __eq__(self, other):
         """
@@ -47,7 +47,7 @@ class Gene:
         """
         if not isinstance(other, Gene):
             return False
-        return hash(self) == hash(other)
+        return self.expr == other.expr
 
     def __ne__(self, other):
         """
@@ -71,7 +71,13 @@ class Gene:
         return self.fitness > other.fitness
 
     def __hash__(self):
-        return hash(self.root_node) ^ hash(self.height)
+        return hash(self.expr)
+
+    def build_infix_expr(self):
+        """
+        Build the infix expression of the gene
+        """
+        self.expr = self.get_infix()
 
     def calculate_tree_height(self):
         """
@@ -114,67 +120,71 @@ class Gene:
         ej = np.array(ej)
         xs = ei - ej
 
-        return self._evaluate_function(self.root_node, xs)
+        return self._evaluate_function(xs)
 
-    def _evaluate_function(self, node, values, prefix="x"):
-        if node.is_leaf():
-            if node.value.startswith(prefix):
-                return values[int(node.value[1:])]
+    def _evaluate_function(self, values, prefix="x"):
+        """
+        Evaluate the gene using the input values
 
-            else:
-                return int(node.value)
+        @param values: The input values
+        @param prefix: The prefix to use in the expression
+        """
+        config = SimulationConfig().get_args()
 
-        left = self._evaluate_function(node.left, values, prefix)
-        right = self._evaluate_function(node.right, values, prefix)
+        terminals_list = config.terminals
 
-        if node.value == "+":
-            return left + right
+        terminals_dict = {}
 
-        elif node.value == "-":
-            return left - right
+        for i, value in enumerate(values):
+            key = f"{prefix}{i}"
+            if key in terminals_list:
+                terminals_dict[key] = value
 
-        elif node.value == "*":
-            return left * right
+        return evaluate(self.expr, terminals_dict)
 
-        elif node.value == "/":
-            # Protected division
-            return left / right if right != 0 else left / 1e-10
-        else:
-            raise ValueError(f"Invalid operator: {node.value}")
-
-    def show_prefix(self):
+    def get_prefix(self):
         """
         Return the prefix notation of the tree
         """
-        return self._show_prefix(self.root_node)
+        return self._get_prefix(self.root_node)
 
-    def _show_prefix(self, node):
+    def _get_prefix(self, node):
         if node is None:
             return " "
 
         result = str(node.value)
 
         if node.left is not None:
-            result += " " + self._show_prefix(node.left)
+            result += " " + self._get_prefix(node.left)
         if node.right is not None:
-            result += " " + self._show_prefix(node.right)
+            result += " " + self._get_prefix(node.right)
         return result
 
-    def show_infix(self):
+    def get_infix(self):
         """
         Return the infix notation of the tree
         """
-        return self._show_infix(self.root_node)
+        return self._get_infix(self.root_node)
 
-    def _show_infix(self, node):
+    def _get_infix(self, node) -> str:
+        """
+        Return the infix notation of the tree with modifications for division and subtraction.
+
+        @param node: The node to start the infix notation
+        @return: The infix notation of the tree
+        """
         if node is None:
             return " "
 
-        # Infix notation: Left -> Root -> Right
         if node.is_leaf():
             return str(node.value)
 
-        left_expr = self._show_infix(node.left) if node.left else ""
-        right_expr = self._show_infix(node.right) if node.right else ""
+        left_expr = self._get_infix(node.left) if node.left else ""
+        right_expr = self._get_infix(node.right) if node.right else ""
 
-        return f"({left_expr} {node.value} {right_expr})"
+        if node.value == "/":  # Protected division
+            return f"(abs({left_expr} / ({right_expr} + 1e-10)))"
+        elif node.value == "-":  # Absolute difference
+            return f"(abs({left_expr} - {right_expr}))"
+        else:
+            return f"({left_expr} {node.value} {right_expr})"
