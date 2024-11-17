@@ -167,15 +167,16 @@ class Simulation:
         @param population: The population to get the best genes
         @return: The best genes found
         """
-        seen_fitness = set()
+        seen = {}
         unique_best = []
 
         for gene in heapq.nlargest(
             len(population), population, key=lambda g: g.fitness
         ):
-            if gene.fitness not in seen_fitness:
+            if gene not in seen:
                 unique_best.append(gene)
-                seen_fitness.add(gene.fitness)
+                seen[gene] = True
+
             if len(unique_best) == n_best_fitness:
                 break
 
