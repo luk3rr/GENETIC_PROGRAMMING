@@ -241,6 +241,12 @@ def process_experiment_logs(
         training_summary_dict = training_summary(generation_dfs)
         training_summary_dict["ExperimentId"] = experiment_id
 
+        # Adiciona colunas com cada um dos parâmetros
+        params = parse_experiment_id(experiment_id)
+
+        for key, value in params.items():
+            training_summary_dict[key] = value
+
         training_summary_data.append(training_summary_dict)
 
         # Process the ranking data

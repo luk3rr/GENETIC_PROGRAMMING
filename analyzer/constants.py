@@ -4,8 +4,13 @@
 # Created on: November 17, 2024
 # Author: Lucas Araújo <araujolucas@dcc.ufmg.br>
 
-LOG_FOLDER = "testlog/"
+LOG_FOLDER = "log/"
 OUTPUT_FOLDER = "processed/"
+
+FIGS_FOLDER = "figs/"
+FIGS_FORMAT = "png"
+FIGS_DPI = 300
+FIGS_SIZE = (10, 6)
 
 ID_PREFIX_LENGTH = 2
 EXPERIMENT_ROUNDS = 10
@@ -15,13 +20,13 @@ RANKING_SUMMARY_CSV = "ranking_summary.csv"
 
 # Mapping between the identifier prefix and the identifier name
 IDENTIFIER_NAMES = {
-    "SD": "seed",
-    "PS": "population_size",
-    "GS": "generations",
-    "PC": "crossover_rate",
-    "PM": "mutation_rate",
-    "TS": "tournament_size",
-    "EE": "elitism_enabled",
+    "SD": "Seed",
+    "PS": "PopulationSize",
+    "GS": "Generations",
+    "PC": "CrossoverRate",
+    "PM": "MutationRate",
+    "TS": "TournamentSize",
+    "EE": "ElitismEnabled",
 }
 
 # All data are mean values
@@ -54,4 +59,17 @@ TRAINING_SUMMARY_COLUMNS = [
     "MedianFitness", # Median fitness in each generation
     "StdFitness", # Standard deviation of fitness in each generation
     "TimeTaken", # Time taken to process each generation
+    "PopulationSize", # Population size in each generation
+    "Generations", # Generations
+    "CrossoverRate", # Crossover rate
+    "MutationRate", # Mutation rate
+    "TournamentSize", # Tournament size
+    "ElitismEnabled", # Elitism enabled
 ]
+
+
+def print_separator():
+    print(":" * 80)
+
+def print_line():
+    print("-" * 80)

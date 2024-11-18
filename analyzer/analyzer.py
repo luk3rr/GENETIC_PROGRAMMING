@@ -40,9 +40,6 @@ Pergunta #3
 Pergunta #4
 - Qual combinação de parâmetros minimizam o RMSE entre os dados de treinamento e teste?
 
-- Existe uma relação entre o RMSE e a correlação de Spearman? Isso pode ajudar a
-  identificar a qualidade da generalização
-
 - Objetivo: encontrar a combinação de parâmetros que resulta em um modelo que
   generaliza bem para dados não vistos
 
@@ -101,14 +98,25 @@ Pergunta #14
 - Objetivo: entender se a pressão seletiva é um fator importante para melhorar o fitness
 """
 
-import pandas as pd
 import os
-from typing import Tuple
-
-from matplotlib import pyplot as plt
+import pandas as pd
 import seaborn as sns
 
-from .summarizer import OUTPUT_FOLDER, TRAINING_SUMMARY_CSV, RANKING_SUMMARY_CSV
+from typing import Tuple
+from matplotlib import pyplot as plt
+
+from .constants import (
+    OUTPUT_FOLDER,
+    TRAINING_SUMMARY_CSV,
+    RANKING_SUMMARY_CSV,
+    FIGS_FOLDER,
+    FIGS_FORMAT,
+    FIGS_DPI,
+    FIGS_SIZE,
+    print_line,
+    print_separator,
+)
+
 
 def load_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -116,69 +124,249 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
 
     @return: A tuple containing the training data and the ranking data
     """
-    training_data = pd.read_csv(os.path.join(OUTPUT_FOLDER, TRAINING_SUMMARY_CSV), sep="|")
-    ranking_data = pd.read_csv(os.path.join(OUTPUT_FOLDER, RANKING_SUMMARY_CSV), sep="|")
+    training_data = pd.read_csv(
+        os.path.join(OUTPUT_FOLDER, TRAINING_SUMMARY_CSV), sep="|"
+    )
+    ranking_data = pd.read_csv(
+        os.path.join(OUTPUT_FOLDER, RANKING_SUMMARY_CSV), sep="|"
+    )
 
     return training_data, ranking_data
 
-def analyze_discrepancy_and_fitness(ranking_df, training_df):
+def plot_fitness_vs_paramter(df, parameter_name):
     """
-    Responde à Pergunta #1: Identifica combinações de parâmetros que minimizam a discrepância
-    entre rankings e mantêm bom desempenho em fitness absoluto.
-    Também plota um heatmap com as métricas relevantes.
+    Responde à Pergunta #5: Qual combinação de parâmetros geram os melhores genes em termos de fitness?
 
-    Args:
-        ranking_df (pd.DataFrame): DataFrame com os dados de ranking.
-        training_df (pd.DataFrame): DataFrame com os dados de treinamento.
-
-    Returns:
-        pd.DataFrame: Combinações de parâmetros com melhor generalização.
+    @param df: DataFrame com os dados
+    @param parameter_name: Nome do parâmetro a ser plotado
     """
-    # Combinar os dados usando ExperimentId
-    combined_data = pd.merge(ranking_df, training_df, on="ExperimentId", suffixes=("_ranking", "_training"))
-
-    # Calcular uma métrica de discrepância
-    combined_data["Discrepancy"] = abs(combined_data["BestFitnessOnTest"] - combined_data["BestFitnessOnTraining"])
-
-    # Filtrar combinações que minimizam a discrepância
-    min_discrepancy = combined_data["Discrepancy"].min()
-    best_discrepancy_data = combined_data[combined_data["Discrepancy"] == min_discrepancy]
-
-    # Verificar bom desempenho em fitness absoluto
-    # Critérios: BestFitnessOnTest e BestFitnessOnTraining devem estar entre os top 20%
-    test_threshold = combined_data["BestFitnessOnTest"].quantile(0.8)
-    training_threshold = combined_data["BestFitnessOnTraining"].quantile(0.8)
-
-    best_generalization = best_discrepancy_data[
-        (best_discrepancy_data["BestFitnessOnTest"] >= test_threshold) &
-        (best_discrepancy_data["BestFitnessOnTraining"] >= training_threshold)
-    ]
-
-    # Criar heatmap com SpearmansCorrelation e Discrepancy
-    plt.figure(figsize=(10, 6))
-    heatmap_data = combined_data.pivot(
-        index="ExperimentId",
-        columns="SpearmansCorrelation",
-        values="Discrepancy"
+    pivot_table = df.pivot_table(
+        values="BestFitnessOnTraining", 
+        index=parameter_name, 
+        aggfunc="mean"
     )
-    sns.heatmap(
-        heatmap_data,
-        annot=True,
-        fmt=".2f",
-        cmap="coolwarm",
-        cbar_kws={"label": "Discrepancy"}
-    )
-    plt.title("Heatmap: Discrepância vs Spearman's Correlation")
-    plt.xlabel("Spearman's Correlation")
-    plt.ylabel("ExperimentId")
-    plt.tight_layout()
-    plt.show()
+    
+    plt.figure(figsize=FIGS_SIZE)
+    sns.heatmap(pivot_table, annot=True, cmap="coolwarm", fmt=".2f", cbar=True)
 
-    return best_generalization[[
-        "ExperimentId",
-        "Discrepancy",
-        "BestFitnessOnTest",
-        "BestFitnessOnTraining",
-        "RMSE",
-        "SpearmansCorrelation"
-    ]].sort_values(by="Discrepancy")
+    plt.xlabel(parameter_name)
+    plt.ylabel("Best Fitness on Training")
+    plt.title(f"Heatmap of Best Fitness on Training vs {parameter_name}")
+
+    plt.savefig(
+        os.path.join(FIGS_FOLDER, f"heatmap_fitness_vs_{parameter_name}.{FIGS_FORMAT}"),
+        dpi=FIGS_DPI,
+    )
+    plt.close()
+
+
+def plot_correlation_between_training_and_test(df):
+    """
+    Responde à Pergunta #3: Há uma correlação entre o melhor fitness no treinamento e o melhor fitness no teste?
+
+    @param df: DataFrame com os dados
+    """
+    print("Plotting correlation between training and test...")
+
+    plt.figure(figsize=FIGS_SIZE)
+
+    sns.scatterplot(data=df, x="BestFitnessOnTraining", y="BestFitnessOnTest")
+
+    plt.xlabel("Best Fitness on Training")
+    plt.ylabel("Best Fitness on Test")
+    plt.title("Correlation between Best Fitness on Training and Test")
+
+    plt.savefig(
+        os.path.join(
+            FIGS_FOLDER, f"correlation_between_training_and_test.{FIGS_FORMAT}"
+        ),
+        dpi=FIGS_DPI,
+    )
+
+    plt.close()
+
+    gene_with_best_fitness_on_training = df.loc[df["BestFitnessOnTraining"].idxmax()]
+
+    gene_with_best_fitness_on_test = df.loc[df["BestFitnessOnTest"].idxmax()]
+
+    print("Best fitness on training:")
+    print(gene_with_best_fitness_on_training)
+    print_separator()
+    print("Best fitness on test:")
+    print(gene_with_best_fitness_on_test)
+
+
+def plot_fitness_vs_parameter(df, parameter_name):
+    """
+    Responde à Pergunta #5: Qual combinação de parâmetros geram os melhores genes em termos de fitness?
+
+    @param df: DataFrame com os dados
+    @param parameter_name: Nome do parâmetro a ser plotado
+    """
+    plt.figure(figsize=FIGS_SIZE)
+
+    sns.scatterplot(data=df, x=parameter_name, y="BestFitnessOnTraining")
+    plt.xlabel(parameter_name)
+    plt.ylabel("Best Fitness on Training")
+    plt.title(f"Fitness vs. {parameter_name}")
+
+    plt.savefig(
+        os.path.join(FIGS_FOLDER, f"fitness_vs_{parameter_name}.{FIGS_FORMAT}"),
+        dpi=FIGS_DPI,
+    )
+
+
+def plot_fitness_vs_mutation_rate(df):
+    """
+    Responde à Pergunta #6: Aumentar a taxa de mutação melhora o fitness médio?
+
+    @param df: DataFrame com os dados
+    """
+    plot_fitness_vs_parameter(df, "MutationRate")
+
+
+def plot_fitness_vs_crossover_rate(df):
+    """
+    Responde à Pergunta #8: Aumentar a taxa de cruzamento melhora o fitness médio?
+
+    @param df: DataFrame com os dados
+    """
+    plot_fitness_vs_parameter(df, "CrossoverRate")
+
+
+def plot_fitness_vs_population_size(df):
+    """
+    Responde à Pergunta #11: Aumentar o tamanho da população melhora o fitness médio?
+
+    @param df: DataFrame com os dados
+    """
+    plot_fitness_vs_parameter(df, "PopulationSize")
+
+
+def plot_fitness_vs_generations(df):
+    """
+    Responde à Pergunta #12: Aumentar o número de gerações melhora o fitness médio?
+
+    @param df: DataFrame com os dados
+    """
+    plot_fitness_vs_parameter(df, "Generations")
+
+
+def plot_fitness_vs_tournament_size(df):
+    """
+    Responde à Pergunta #13: Aumentar a pressão seletiva melhora o fitness médio?
+
+    @param df: DataFrame com os dados
+    """
+    plot_fitness_vs_parameter(df, "TournamentSize")
+
+
+def plot_fitness_vs_elitism_enabled(df):
+    """
+    Responde à Pergunta #10: Habilitar elitismo melhora o fitness médio?
+
+    @param df: DataFrame com os dados
+    """
+    plot_fitness_vs_parameter(df, "ElitismEnabled")
+
+
+def plot_fitness_vs_std_fitness(df):
+    """
+    Responde à Pergunta #9: O desvio padrão do fitness (StdFitness) diminui à medida que o número de gerações aumenta?
+
+    @param df: DataFrame com os dados de treinamento
+    """
+    plt.figure(figsize=FIGS_SIZE)
+
+    sns.scatterplot(data=df, x="Generations", y="StdFitness")
+    plt.xlabel("Generations")
+    plt.ylabel("StdFitness")
+    plt.title("StdFitness vs. Generations")
+
+    plt.savefig(
+        os.path.join(FIGS_FOLDER, f"std_fitness_vs_generations.{FIGS_FORMAT}"),
+        dpi=FIGS_DPI,
+    )
+
+
+def plot_fitness_vs_mean_fitness(df):
+    """
+    Responde à Pergunta #9: O desvio padrão do fitness (StdFitness) diminui à medida que o número de gerações aumenta?
+
+    @param df: DataFrame com os dados
+    """
+    plt.figure(figsize=FIGS_SIZE)
+
+    sns.scatterplot(data=df, x="Generations", y="MeanFitness")
+    plt.xlabel("Generations")
+    plt.ylabel("MeanFitness")
+    plt.title("MeanFitness vs. Generations")
+
+    plt.savefig(
+        os.path.join(FIGS_FOLDER, f"mean_fitness_vs_generations.{FIGS_FORMAT}"),
+        dpi=FIGS_DPI,
+    )
+
+
+def plot_fitness_vs_median_fitness(df):
+    """
+    Responde à Pergunta #9: O desvio padrão do fitness (StdFitness) diminui à medida que o número de gerações aumenta?
+
+    @param df: DataFrame com os dados
+    """
+    plt.figure(figsize=FIGS_SIZE)
+
+    sns.scatterplot(data=df, x="Generations", y="MedianFitness")
+    plt.xlabel("Generations")
+    plt.ylabel("MedianFitness")
+    plt.title("MedianFitness vs. Generations")
+
+    plt.savefig(
+        os.path.join(FIGS_FOLDER, f"median_fitness_vs_generations.{FIGS_FORMAT}"),
+        dpi=FIGS_DPI,
+    )
+
+
+def get_parameter_combinations_with_less_ranking_discrepancy(df):
+    """
+    Responde à Pergunta #1: Quais combinações de parâmetros minimizam a discrepância entre ranking de dados de teste e treinamento?
+
+    @param df: DataFrame com os dados
+    @return: DataFrame com as melhores combinações de parâmetros
+    """
+    return df.loc[df["SpearmansCorrelation"].idxmax()]
+
+
+def get_parameter_combinations_with_more_ranking_discrepancy(df):
+    """
+    Responde à Pergunta #1: Quais combinações de parâmetros minimizam a discrepância entre ranking de dados de teste e treinamento?
+
+    @param df: DataFrame com os dados
+    @return: DataFrame com as piores combinações de parâmetros
+    """
+    return df.loc[df["SpearmansCorrelation"].idxmin()]
+
+
+def get_parameter_combinations_with_best_fitness_on_test(df):
+    """
+    Responde à Pergunta #2: Identifica as combinações de parâmetros que resultam no melhor fitness médio
+
+    @param df: DataFrame com os dados
+    @return: DataFrame com as melhores combinações de parâmetros
+    """
+    # Identificar a combinação de parâmetros com melhor fitness médio
+    best_fitness_combination = df.loc[df["MeanFitnessOnTest"].idxmax()]
+
+    return best_fitness_combination
+
+def get_parameter_combinations_with_worst_fitness_on_test(df):
+    """
+    Responde à Pergunta #2: Identifica as combinações de parâmetros que resultam no pior fitness médio
+
+    @param df: DataFrame com os dados
+    @return: DataFrame com as piores combinações de parâmetros
+    """
+    # Identificar a combinação de parâmetros com pior fitness médio
+    worst_fitness_combination = df.loc[df["MeanFitnessOnTest"].idxmin()]
+
+    return worst_fitness_combination
