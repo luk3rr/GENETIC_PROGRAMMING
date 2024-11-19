@@ -8,114 +8,17 @@
 This script is responsible for analyzing the data summarized by the summarizer.py script.
 """
 
-"""
-Perguntas:
-
-Pergunta #1
-- Quais combinações de parâmetros minimizam a discrepância entre ranking
-  de dados de teste e treinamento?
-
-- Além de minimizar a discrepância, essas combinações mantêm um bom desempenho em
-  fitness absoluto (tanto no treinamento quanto no teste) ?
-
-- Objetivo: encontrar a combinação de parâmetros que resulta em um modelo que
-  generaliza bem para dados não vistos
-
-Pergunta #2
-- Quais combinações de parâmetros resultam no melhor fitness médio?
-
-- Essas combinações também resultam no melhor fitness médio nos dados de teste?
-
-- Essa combinação resulta em um modelo que generaliza bem, isto é, a discrepância entre
-  ranking de dados de teste e treinamento é pequena?
-
-- Objetivo: encontrar a combinação de parâmetros que resulta em um modelo que
-  tem o melhor desempenho médio
-
-Pergunta #3
-- Há uma correlação entre o melhor fitness no treinamento e o melhor fitness no teste?
-
-- Objetivo: entender se o fitness no treinamento é um bom indicador de fitness no teste
-
-Pergunta #4
-- Qual combinação de parâmetros minimizam o RMSE entre os dados de treinamento e teste?
-
-- Objetivo: encontrar a combinação de parâmetros que resulta em um modelo que
-  generaliza bem para dados não vistos
-
-Pergunta #5
-- Qual combinação de parâmetros geram os melhores genes em termos de fitness?
-
-- Objetivo: entender quais parâmetros resultam em genes que têm um bom desempenho
-
-Pergunta #6
-- Aumentar a taxa de mutação melhora o fitness médio?
-
-- Objetivo: entender se a mutação é um fator importante para melhorar o fitness
-
-Pergunta #7
-- Aumentar a taxa de mutação melhora a geração de filhos com melhor fitness ou piora?
-
-- Objetivo: entender se a mutação é um fator importante para melhorar o fitness
-
-Pergunta #8
-- Aumentar a taxa de cruzamento melhora o fitness médio?
-
-- Objetivo: entender se o cruzamento é um fator importante para melhorar o fitness
-
-Pergunta #9
-- O desvio padrão do fitness (StdFitness) diminui à medida que o número de gerações
-  aumenta? Isso indica que o algoritmo está convergindo?
-
-- Se o desvio padrão do fitness diminui, o melhor fitness na população também converge?
-  Isso está relacionado a overfitting?
-
-- Objetivo: entender se o algoritmo está convergindo
-
-Pergunta #10
-- Habilitar elitismo melhora o fitness médio?
-
-- Objetivo: entender se o elitismo é um fator importante para melhorar o fitness
-
-Pergunta #11
-- Aumentar o tamanho da população melhora o fitness médio?
-
-- Objetivo: entender se o tamanho da população é um fator importante para melhorar o fitness
-
-Pergunta #12
-- Aumentar o número de gerações melhora o fitness médio?
-
-- Objetivo: entender se o número de gerações é um fator importante para melhorar o fitness
-
-Pergunta #13
-- Aumentar a pressão seletiva melhora o fitness médio?
-
-- Objetivo: entender se a pressão seletiva é um fator importante para melhorar o fitness
-
-Pergunta #14
-- Aumentar a pressão seletiva melhora a geração de filhos com melhor fitness ou piora?
-
-- Objetivo: entender se a pressão seletiva é um fator importante para melhorar o fitness
-"""
-
 import os
 import pandas as pd
-import seaborn as sns
+import matplotlib.pyplot as plt
+import pandas as pd
+import pandas as pd
+import matplotlib.pyplot as plt
+import os
 
 from typing import Tuple
-from matplotlib import pyplot as plt
 
-from .constants import (
-    OUTPUT_FOLDER,
-    TRAINING_SUMMARY_CSV,
-    RANKING_SUMMARY_CSV,
-    FIGS_FOLDER,
-    FIGS_FORMAT,
-    FIGS_DPI,
-    FIGS_SIZE,
-    print_line,
-    print_separator,
-)
+from .constants import OUTPUT_FOLDER, TRAINING_SUMMARY_CSV, RANKING_SUMMARY_CSV, FIGS_FOLDER, FIGS_FORMAT, FIGS_DPI
 
 
 def load_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -133,240 +36,303 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
 
     return training_data, ranking_data
 
-def plot_fitness_vs_paramter(df, parameter_name):
+
+def analyze_population_effect(df, params) -> pd.DataFrame:
     """
-    Responde à Pergunta #5: Qual combinação de parâmetros geram os melhores genes em termos de fitness?
+    Analisa o impacto do tamanho da população na fitness média, mantendo os outros parâmetros fixos.
 
-    @param df: DataFrame com os dados
-    @param parameter_name: Nome do parâmetro a ser plotado
+    @param df: DataFrame contendo os dados combinados para análise
+    @param params: Dicionário contendo os valores dos parâmetros fixos (ex.: {'Generations': 20, 'CrossoverRate': 0.9, ...})
+    @return: Um DataFrame com os grupos comparados e as diferenças calculadas
     """
-    pivot_table = df.pivot_table(
-        values="BestFitnessOnTraining", 
-        index=parameter_name, 
-        aggfunc="mean"
-    )
-    
-    plt.figure(figsize=FIGS_SIZE)
-    sns.heatmap(pivot_table, annot=True, cmap="coolwarm", fmt=".2f", cbar=True)
+    # Filtrar o DataFrame com base nos parâmetros fornecidos
+    filtered_df = df
+    for key, value in params.items():
+        filtered_df = filtered_df[filtered_df[key] == value]
 
-    plt.xlabel(parameter_name)
-    plt.ylabel("Best Fitness on Training")
-    plt.title(f"Heatmap of Best Fitness on Training vs {parameter_name}")
+    # Verificar se há dados suficientes para análise
+    if filtered_df.empty:
+        raise ValueError("Nenhum dado encontrado com os parâmetros fornecidos.")
 
-    plt.savefig(
-        os.path.join(FIGS_FOLDER, f"heatmap_fitness_vs_{parameter_name}.{FIGS_FORMAT}"),
-        dpi=FIGS_DPI,
-    )
-    plt.close()
+    # Ordenar por PopulationSize para análise
+    sorted_df = filtered_df.sort_values("PopulationSize")
+
+    results = []
+    for i in range(len(sorted_df) - 1):
+        row1 = sorted_df.iloc[i]
+        row2 = sorted_df.iloc[i + 1]
+
+        diffTraining = row2["MeanFitnessOnTraining"] - row1["MeanFitnessOnTraining"]
+        improvementTraining = (diffTraining / row1["MeanFitnessOnTraining"]) * 100
+
+        diffTest = row2["MeanFitnessOnTest"] - row1["MeanFitnessOnTest"]
+        improvementTest = (diffTest / row1["MeanFitnessOnTest"]) * 100
+
+        results.append(
+            {
+                "Population1": row1["PopulationSize"],
+                "Population2": row2["PopulationSize"],
+                "FitnessTraining1": row1["MeanFitnessOnTraining"],
+                "FitnessTraining2": row2["MeanFitnessOnTraining"],
+                "FitnessTest1": row1["MeanFitnessOnTest"],
+                "FitnessTest2": row2["MeanFitnessOnTest"],
+                # "AbsoluteImprovementTraining": diffTraining,
+                "PercentImprovementTraining": improvementTraining,
+                # "AbsoluteImprovementTest": diffTest,
+                "PercentImprovementTest": improvementTest,
+            }
+        )
+
+    return pd.DataFrame(results)
 
 
-def plot_correlation_between_training_and_test(df):
+def analyze_generation_effect(df, params) -> pd.DataFrame:
     """
-    Responde à Pergunta #3: Há uma correlação entre o melhor fitness no treinamento e o melhor fitness no teste?
+    Analisa o impacto do número de gerações na fitness média, mantendo os outros parâmetros fixos.
 
-    @param df: DataFrame com os dados
+    @param df: DataFrame contendo os dados combinados para análise
+    @param params: Dicionário contendo os valores dos parâmetros fixos (ex.: {'PopulationSize': 100, 'CrossoverRate': 0.9, ...})
+    @return: Um DataFrame com os grupos comparados e as diferenças calculadas
     """
-    print("Plotting correlation between training and test...")
+    # Filtrar o DataFrame com base nos parâmetros fornecidos
+    filtered_df = df
+    for key, value in params.items():
+        filtered_df = filtered_df[filtered_df[key] == value]
 
-    plt.figure(figsize=FIGS_SIZE)
+    # Verificar se há dados suficientes para análise
+    if filtered_df.empty:
+        raise ValueError("Nenhum dado encontrado com os parâmetros fornecidos.")
 
-    sns.scatterplot(data=df, x="BestFitnessOnTraining", y="BestFitnessOnTest")
+    # Ordenar por Generations para análise
+    sorted_df = filtered_df.sort_values("Generations")
 
-    plt.xlabel("Best Fitness on Training")
-    plt.ylabel("Best Fitness on Test")
-    plt.title("Correlation between Best Fitness on Training and Test")
+    results = []
+    for i in range(len(sorted_df) - 1):
+        row1 = sorted_df.iloc[i]
+        row2 = sorted_df.iloc[i + 1]
 
-    plt.savefig(
-        os.path.join(
-            FIGS_FOLDER, f"correlation_between_training_and_test.{FIGS_FORMAT}"
-        ),
-        dpi=FIGS_DPI,
-    )
+        diffTraining = row2["MeanFitnessOnTraining"] - row1["MeanFitnessOnTraining"]
+        improvementTraining = (diffTraining / row1["MeanFitnessOnTraining"]) * 100
 
-    plt.close()
+        diffTest = row2["MeanFitnessOnTest"] - row1["MeanFitnessOnTest"]
+        improvementTest = (diffTest / row1["MeanFitnessOnTest"]) * 100
 
-    gene_with_best_fitness_on_training = df.loc[df["BestFitnessOnTraining"].idxmax()]
+        results.append(
+            {
+                "Generations1": row1["Generations"],
+                "Generations2": row2["Generations"],
+                "FitnessTraining1": row1["MeanFitnessOnTraining"],
+                "FitnessTraining2": row2["MeanFitnessOnTraining"],
+                "FitnessTest1": row1["MeanFitnessOnTest"],
+                "FitnessTest2": row2["MeanFitnessOnTest"],
+                # "AbsoluteImprovementTraining": diffTraining,
+                "PercentImprovementTraining": improvementTraining,
+                # "AbsoluteImprovementTest": diffTest,
+                "PercentImprovementTest": improvementTest,
+            }
+        )
 
-    gene_with_best_fitness_on_test = df.loc[df["BestFitnessOnTest"].idxmax()]
-
-    print("Best fitness on training:")
-    print(gene_with_best_fitness_on_training)
-    print_separator()
-    print("Best fitness on test:")
-    print(gene_with_best_fitness_on_test)
+    return pd.DataFrame(results)
 
 
-def plot_fitness_vs_parameter(df, parameter_name):
+def analyze_mutation_effect(df, params) -> pd.DataFrame:
     """
-    Responde à Pergunta #5: Qual combinação de parâmetros geram os melhores genes em termos de fitness?
+    Analisa o impacto da taxa de mutação na qualidade dos filhos gerados, mantendo os outros parâmetros fixos.
 
-    @param df: DataFrame com os dados
-    @param parameter_name: Nome do parâmetro a ser plotado
+    @param df: DataFrame contendo os dados combinados para análise
+    @param params: Dicionário contendo os valores dos parâmetros fixos (ex.: {'Generations': 20, 'PopulationSize': 100, ...})
+    @return: Um DataFrame com os grupos comparados e as diferenças calculadas
     """
-    plt.figure(figsize=FIGS_SIZE)
+    # Filtrar o DataFrame com base nos parâmetros fornecidos
+    filtered_df = df
+    for key, value in params.items():
+        filtered_df = filtered_df[filtered_df[key] == value]
 
-    sns.scatterplot(data=df, x=parameter_name, y="BestFitnessOnTraining")
-    plt.xlabel(parameter_name)
-    plt.ylabel("Best Fitness on Training")
-    plt.title(f"Fitness vs. {parameter_name}")
+    # Verificar se há dados suficientes para análise
+    if filtered_df.empty:
+        raise ValueError("Nenhum dado encontrado com os parâmetros fornecidos.")
 
-    plt.savefig(
-        os.path.join(FIGS_FOLDER, f"fitness_vs_{parameter_name}.{FIGS_FORMAT}"),
-        dpi=FIGS_DPI,
-    )
+    # Ordenar por MutationRate para análise
+    sorted_df = filtered_df.sort_values("MutationRate")
 
+    results = []
+    for i in range(len(sorted_df) - 1):
+        row1 = sorted_df.iloc[i]
+        row2 = sorted_df.iloc[i + 1]
 
-def plot_fitness_vs_mutation_rate(df):
+        better_diff = row2["BetterChilds"] - row1["BetterChilds"]
+        worse_diff = row2["WorstChilds"] - row1["WorstChilds"]
+
+        improvementBetter = (better_diff / row1["BetterChilds"]) * 100
+
+        improvementWorse = (worse_diff / row1["WorstChilds"]) * 100
+
+        results.append(
+            {
+                "MutationRate1": row1["MutationRate"],
+                "MutationRate2": row2["MutationRate"],
+                "BetterChilds1": row1["BetterChilds"],
+                "BetterChilds2": row2["BetterChilds"],
+                "BetterChildsDiff": better_diff,
+                "WorstChilds1": row1["WorstChilds"],
+                "WorstChilds2": row2["WorstChilds"],
+                "WorstChildsDiff": worse_diff,
+                "PercentImprovementBetter": improvementBetter,
+                "PercentImprovementWorse": improvementWorse,
+            }
+        )
+
+    return pd.DataFrame(results)
+
+def analyze_tournament_size_effect(df, params) -> pd.DataFrame:
     """
-    Responde à Pergunta #6: Aumentar a taxa de mutação melhora o fitness médio?
+    Analisa o impacto do tamanho do torneio na qualidade dos filhos gerados, mantendo os outros parâmetros fixos.
 
-    @param df: DataFrame com os dados
+    @param df: DataFrame contendo os dados combinados para análise
+    @param params: Dicionário contendo os valores dos parâmetros fixos (ex.: {'Generations': 20, 'PopulationSize': 100, ...})
+    @return: Um DataFrame com os grupos comparados e as diferenças calculadas
     """
-    plot_fitness_vs_parameter(df, "MutationRate")
+    # Filtrar o DataFrame com base nos parâmetros fornecidos
+    filtered_df = df
+    for key, value in params.items():
+        filtered_df = filtered_df[filtered_df[key] == value]
 
+    # Verificar se há dados suficientes para análise
+    if filtered_df.empty:
+        raise ValueError("Nenhum dado encontrado com os parâmetros fornecidos.")
 
-def plot_fitness_vs_crossover_rate(df):
+    # Ordenar por TournamentSize para análise
+    sorted_df = filtered_df.sort_values("TournamentSize")
+
+    results = []
+    for i in range(len(sorted_df) - 1):
+        row1 = sorted_df.iloc[i]
+        row2 = sorted_df.iloc[i + 1]
+
+        better_diff = row2["BetterChilds"] - row1["BetterChilds"]
+        worse_diff = row2["WorstChilds"] - row1["WorstChilds"]
+
+        improvementBetter = (better_diff / row1["BetterChilds"]) * 100
+        improvementWorse = (worse_diff / row1["WorstChilds"]) * 100
+
+        results.append(
+            {
+                "TournamentSize1": row1["TournamentSize"],
+                "TournamentSize2": row2["TournamentSize"],
+                "BetterChilds1": row1["BetterChilds"],
+                "BetterChilds2": row2["BetterChilds"],
+                "BetterChildsDiff": better_diff,
+                "WorstChilds1": row1["WorstChilds"],
+                "WorstChilds2": row2["WorstChilds"],
+                "WorstChildsDiff": worse_diff,
+                "PercentImprovementBetter": improvementBetter,
+                "PercentImprovementWorse": improvementWorse,
+            }
+        )
+
+    return pd.DataFrame(results)
+
+def plot_top_parameter_sets(df, top_n=5):
     """
-    Responde à Pergunta #8: Aumentar a taxa de cruzamento melhora o fitness médio?
+    Gera um gráfico de barras com os top N conjuntos de parâmetros em termos de fitness média,
+    incluindo a melhor e a pior fitness para esses conjuntos de parâmetros.
 
-    @param df: DataFrame com os dados
+    @param df: DataFrame contendo os resultados da simulação com as colunas de parâmetros e fitness.
+    @param top_n: Número de conjuntos de parâmetros a serem exibidos (por padrão, 10).
+    @return: Um gráfico de barras mostrando os top N conjuntos de parâmetros com suas fitness médias, melhor e pior fitness.
     """
-    plot_fitness_vs_parameter(df, "CrossoverRate")
+    # Seleciona as colunas relevantes para a análise
+    relevant_columns = [
+        "ExperimentId",  # ID do experimento
+        "Generations",
+        "CrossoverRate",
+        "MutationRate",
+        "TournamentSize",
+        "ElitismEnabled",
+        "MeanFitnessOnTraining",
+        "BestFitness",
+        "WorstFitness"
+    ]
+
+    # Agrupar os dados pelos parâmetros de interesse e calcular a fitness média
+    grouped = df[relevant_columns].groupby(
+        [
+            "Generations",
+            "CrossoverRate",
+            "MutationRate",
+            "TournamentSize",
+            "ElitismEnabled",
+        ]
+    ).agg(
+        MeanFitness=("MeanFitnessOnTraining", "mean"),
+        BestFitness=("BestFitness", "max"),
+        WorstFitness=("WorstFitness", "min")
+    ).reset_index()
+
+    # Garantir que o 'ExperimentId' seja incluído
+    grouped["ExperimentId"] = df["ExperimentId"]
+
+    # Ordenar os resultados pela fitness média (em ordem decrescente)
+    sorted_group = grouped.sort_values("MeanFitness", ascending=False)
+
+    # Seleciona os top N conjuntos de parâmetros
+    top_n_group = sorted_group.head(top_n)
+
+    # Plotar o gráfico de barras
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    # Plot da fitness média
+    ax.bar(top_n_group["ExperimentId"].astype(str), top_n_group["MeanFitness"], color='blue', label='Fitness Média')
+
+    # Plot da melhor fitness
+    ax.plot(top_n_group["ExperimentId"].astype(str), top_n_group["BestFitness"], label='Melhor Fitness', color='green', marker='o', linestyle='--')
+
+    # Plot da pior fitness
+    ax.plot(top_n_group["ExperimentId"].astype(str), top_n_group["WorstFitness"], label='Pior Fitness', color='red', marker='x', linestyle='--')
+
+    # Adicionar título e rótulos
+    ax.set_title(f"Top {top_n} Conjuntos de Parâmetros - Fitness Média, Melhor e Pior Fitness", fontsize=14)
+    ax.set_xlabel("ID do Conjunto de Parâmetros (ExperimentId)", fontsize=12)
+    ax.set_ylabel("Fitness", fontsize=12)
+
+    # Adicionar a legenda
+    ax.legend()
+
+    # Adicionar grid
+    ax.grid(True, axis='y', linestyle='--', alpha=0.7)
+
+    plt.xticks(rotation=0, fontsize=9)
+
+    # Ajustar layout
+    plt.tight_layout()
+
+    # Exibir o gráfico
+
+    # Se desejar salvar o gráfico em um diretório específico
+    plt.savefig(os.path.join(FIGS_FOLDER, f"top_{top_n}_parameter_sets{FIGS_FORMAT}"), dpi=FIGS_DPI)
 
 
-def plot_fitness_vs_population_size(df):
+def get_extreme_fitness(df):
     """
-    Responde à Pergunta #11: Aumentar o tamanho da população melhora o fitness médio?
+    Retorna a linha com a maior fitness absoluta e a menor fitness absoluta no treinamento.
 
-    @param df: DataFrame com os dados
+    @param df: DataFrame contendo os resultados da simulação, com a coluna 'MeanFitnessOnTraining'.
+    @return: Um dicionário contendo as linhas com a maior e a menor fitness.
     """
-    plot_fitness_vs_parameter(df, "PopulationSize")
+    # Encontrar a linha com a maior fitness absoluta
+    max_training_fitness_row = df.loc[df['BestFitnessOnTraining'].idxmax()]
+
+    # Encontrar a linha com a menor fitness absoluta
+    min_training_fitness_row = df.loc[df['BestFitnessOnTraining'].idxmin()]
+
+    max_test_fitness_row = df.loc[df['BestFitnessOnTest'].idxmax()]
+
+    min_test_fitness_row = df.loc[df['BestFitnessOnTest'].idxmin()]
 
 
-def plot_fitness_vs_generations(df):
-    """
-    Responde à Pergunta #12: Aumentar o número de gerações melhora o fitness médio?
-
-    @param df: DataFrame com os dados
-    """
-    plot_fitness_vs_parameter(df, "Generations")
-
-
-def plot_fitness_vs_tournament_size(df):
-    """
-    Responde à Pergunta #13: Aumentar a pressão seletiva melhora o fitness médio?
-
-    @param df: DataFrame com os dados
-    """
-    plot_fitness_vs_parameter(df, "TournamentSize")
-
-
-def plot_fitness_vs_elitism_enabled(df):
-    """
-    Responde à Pergunta #10: Habilitar elitismo melhora o fitness médio?
-
-    @param df: DataFrame com os dados
-    """
-    plot_fitness_vs_parameter(df, "ElitismEnabled")
-
-
-def plot_fitness_vs_std_fitness(df):
-    """
-    Responde à Pergunta #9: O desvio padrão do fitness (StdFitness) diminui à medida que o número de gerações aumenta?
-
-    @param df: DataFrame com os dados de treinamento
-    """
-    plt.figure(figsize=FIGS_SIZE)
-
-    sns.scatterplot(data=df, x="Generations", y="StdFitness")
-    plt.xlabel("Generations")
-    plt.ylabel("StdFitness")
-    plt.title("StdFitness vs. Generations")
-
-    plt.savefig(
-        os.path.join(FIGS_FOLDER, f"std_fitness_vs_generations.{FIGS_FORMAT}"),
-        dpi=FIGS_DPI,
-    )
-
-
-def plot_fitness_vs_mean_fitness(df):
-    """
-    Responde à Pergunta #9: O desvio padrão do fitness (StdFitness) diminui à medida que o número de gerações aumenta?
-
-    @param df: DataFrame com os dados
-    """
-    plt.figure(figsize=FIGS_SIZE)
-
-    sns.scatterplot(data=df, x="Generations", y="MeanFitness")
-    plt.xlabel("Generations")
-    plt.ylabel("MeanFitness")
-    plt.title("MeanFitness vs. Generations")
-
-    plt.savefig(
-        os.path.join(FIGS_FOLDER, f"mean_fitness_vs_generations.{FIGS_FORMAT}"),
-        dpi=FIGS_DPI,
-    )
-
-
-def plot_fitness_vs_median_fitness(df):
-    """
-    Responde à Pergunta #9: O desvio padrão do fitness (StdFitness) diminui à medida que o número de gerações aumenta?
-
-    @param df: DataFrame com os dados
-    """
-    plt.figure(figsize=FIGS_SIZE)
-
-    sns.scatterplot(data=df, x="Generations", y="MedianFitness")
-    plt.xlabel("Generations")
-    plt.ylabel("MedianFitness")
-    plt.title("MedianFitness vs. Generations")
-
-    plt.savefig(
-        os.path.join(FIGS_FOLDER, f"median_fitness_vs_generations.{FIGS_FORMAT}"),
-        dpi=FIGS_DPI,
-    )
-
-
-def get_parameter_combinations_with_less_ranking_discrepancy(df):
-    """
-    Responde à Pergunta #1: Quais combinações de parâmetros minimizam a discrepância entre ranking de dados de teste e treinamento?
-
-    @param df: DataFrame com os dados
-    @return: DataFrame com as melhores combinações de parâmetros
-    """
-    return df.loc[df["SpearmansCorrelation"].idxmax()]
-
-
-def get_parameter_combinations_with_more_ranking_discrepancy(df):
-    """
-    Responde à Pergunta #1: Quais combinações de parâmetros minimizam a discrepância entre ranking de dados de teste e treinamento?
-
-    @param df: DataFrame com os dados
-    @return: DataFrame com as piores combinações de parâmetros
-    """
-    return df.loc[df["SpearmansCorrelation"].idxmin()]
-
-
-def get_parameter_combinations_with_best_fitness_on_test(df):
-    """
-    Responde à Pergunta #2: Identifica as combinações de parâmetros que resultam no melhor fitness médio
-
-    @param df: DataFrame com os dados
-    @return: DataFrame com as melhores combinações de parâmetros
-    """
-    # Identificar a combinação de parâmetros com melhor fitness médio
-    best_fitness_combination = df.loc[df["MeanFitnessOnTest"].idxmax()]
-
-    return best_fitness_combination
-
-def get_parameter_combinations_with_worst_fitness_on_test(df):
-    """
-    Responde à Pergunta #2: Identifica as combinações de parâmetros que resultam no pior fitness médio
-
-    @param df: DataFrame com os dados
-    @return: DataFrame com as piores combinações de parâmetros
-    """
-    # Identificar a combinação de parâmetros com pior fitness médio
-    worst_fitness_combination = df.loc[df["MeanFitnessOnTest"].idxmin()]
-
-    return worst_fitness_combination
+    return {
+        "MaxTrainingFitness": max_training_fitness_row,
+        "MinTrainingFitness": min_training_fitness_row,
+        "MaxTestFitness": max_test_fitness_row,
+        "MinTestFitness": min_test_fitness_row
+    }

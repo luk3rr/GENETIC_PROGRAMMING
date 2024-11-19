@@ -197,10 +197,10 @@ def get_all_experiments(log_folder) -> dict:
 
             experiment_ids[experiment_id].append(file_name)
 
-    # for experiment in experiment_ids:
-    #    assert (
-    #        len(experiment_ids[experiment]) == EXPERIMENT_ROUNDS
-    #    ), f"Experiment {experiment} has {len(experiment_ids[experiment])} rounds"
+    for experiment in experiment_ids:
+       assert (
+           len(experiment_ids[experiment]) == EXPERIMENT_ROUNDS
+       ), f"Experiment {experiment} has {len(experiment_ids[experiment])} rounds"
 
     return experiment_ids
 
@@ -239,7 +239,7 @@ def process_experiment_logs(
 
         # Process the training data
         training_summary_dict = training_summary(generation_dfs)
-        training_summary_dict["ExperimentId"] = experiment_id
+        training_summary_dict["ExperimentId"] = experiment_id.replace("_", "")
 
         # Adiciona colunas com cada um dos parâmetros
         params = parse_experiment_id(experiment_id)
@@ -251,7 +251,7 @@ def process_experiment_logs(
 
         # Process the ranking data
         ranking_summary_dict = ranking_summary(pd.concat(ranking_dfs))
-        ranking_summary_dict["ExperimentId"] = experiment_id
+        ranking_summary_dict["ExperimentId"] = experiment_id.replace("_", "")
 
         ranking_summary_data.append(ranking_summary_dict)
 

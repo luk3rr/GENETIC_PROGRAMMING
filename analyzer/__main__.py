@@ -4,16 +4,18 @@
 # Created on: November 17, 2024
 # Author: Lucas Araújo <araujolucas@dcc.ufmg.br>
 
+import os
+
 from .summarizer import process_experiment_logs
 from .analyzer import *
-from .constants import LOG_FOLDER, FIGS_FOLDER, print_line
+from .constants import LOG_FOLDER, FIGS_FOLDER, print_line, print_separator
 
 
 def main():
     os.makedirs(FIGS_FOLDER, exist_ok=True)
 
     # Process the experiment logs
-    process_experiment_logs(LOG_FOLDER)
+    #process_experiment_logs(LOG_FOLDER)
 
     # Load the data
     training_df, ranking_df = load_data()
@@ -22,53 +24,92 @@ def main():
 
     print_line()
 
-    plot_correlation_between_training_and_test(merged_df)
+    # Analyze the population effect
+
+    params = {
+        "Generations": 80,
+        "CrossoverRate": 0.9,
+        "MutationRate": 0.05,
+        "TournamentSize": 3,
+        "ElitismEnabled": 1,
+    }
+
+    print("Analyzing the population effect...")
+    print("Params: ", params)
+    df_population_effect = analyze_population_effect(merged_df, params)
+
+    print(df_population_effect)
 
     print_line()
 
-    plot_fitness_vs_mutation_rate(merged_df)
+    params = {
+        "PopulationSize": 100,
+        "CrossoverRate": 0.9,
+        "MutationRate": 0.05,
+        "TournamentSize": 3,
+        "ElitismEnabled": 1,
+    }
 
-    print_line()
+    print("Analyzing the generations effect...")
+    print("Params: ", params)
 
-    plot_fitness_vs_crossover_rate(merged_df)
+    df_generations_effect = analyze_generation_effect(merged_df, params)
+    print(df_generations_effect)
 
-    print_line()
-
-    plot_fitness_vs_population_size(merged_df)
-
-    print_line()
-
-    plot_fitness_vs_generations(merged_df)
-
-    print_line()
-
-    plot_fitness_vs_tournament_size(merged_df)
-
-    print_line()
-
-    plot_fitness_vs_elitism_enabled(merged_df)
-
-    print_line()
-
-    print("Parameter combinations with less ranking discrepancy...")
-    print(get_parameter_combinations_with_less_ranking_discrepancy(merged_df))
+    params["PopulationSize"] = 200
 
     print_separator()
 
-    print("Parameter combinations with more ranking discrepancy...")
-    print(get_parameter_combinations_with_more_ranking_discrepancy(merged_df))
+    print("Params: ", params)
+    df_generations_effect = analyze_generation_effect(merged_df, params)
+    print(df_generations_effect)
 
     print_line()
 
-    print("Parameter combinations with best fitness on test data")
-    print(get_parameter_combinations_with_best_fitness_on_test(merged_df))
+    print("Analyzing the mutation rate effect...")
+    params = {
+        "PopulationSize": 200,
+        "CrossoverRate": 0.9,
+        "Generations": 20,
+        "TournamentSize": 3,
+        "ElitismEnabled": 1,
+    }
+
+    print("Params: ", params)
+    df_mutation_effect = analyze_mutation_effect(merged_df, params)
+    print(df_mutation_effect)
 
     print_separator()
 
-    print("Parameter combinations with worst fitness on test data")
-    print(get_parameter_combinations_with_worst_fitness_on_test(merged_df))
+    params["Generations"] = 80
+    print("Params: ", params)
+    df_mutation_effect = analyze_mutation_effect(merged_df, params)
+    print(df_mutation_effect)
 
+    print_line()
 
+    print("Analyzing the tournament size effect...")
+    params = {
+        "PopulationSize": 200,
+        "CrossoverRate": 0.9,
+        "Generations": 80,
+        "MutationRate": 0.05,
+        "ElitismEnabled": 1,
+    }
+
+    print("Params: ", params)
+    df_tournament_effect = analyze_tournament_size_effect(merged_df, params)
+    print(df_tournament_effect)
+
+    print_line()
+
+    plot_top_parameter_sets(merged_df)
+
+    print_line()
+
+    best_parameter_set = get_extreme_fitness(merged_df)
+
+    print("Best parameter set: \n", best_parameter_set)
 
 if __name__ == "__main__":
     main()
