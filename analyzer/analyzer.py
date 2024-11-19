@@ -39,22 +39,20 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
 
 def analyze_population_effect(df, params) -> pd.DataFrame:
     """
-    Analisa o impacto do tamanho da população na fitness média, mantendo os outros parâmetros fixos.
+    Analyzes the impact of population size on the quality of individuals, keeping the other parameters fixed
 
-    @param df: DataFrame contendo os dados combinados para análise
-    @param params: Dicionário contendo os valores dos parâmetros fixos (ex.: {'Generations': 20, 'CrossoverRate': 0.9, ...})
-    @return: Um DataFrame com os grupos comparados e as diferenças calculadas
+    @param df: DataFrame containing the combined data for analysis
+    @param params: Dictionary containing the values of the fixed parameters
+                   (ex.: {'Generations': 20, 'PopulationSize': 100, ...})
     """
-    # Filtrar o DataFrame com base nos parâmetros fornecidos
     filtered_df = df
+
     for key, value in params.items():
         filtered_df = filtered_df[filtered_df[key] == value]
 
-    # Verificar se há dados suficientes para análise
     if filtered_df.empty:
         raise ValueError("Nenhum dado encontrado com os parâmetros fornecidos.")
 
-    # Ordenar por PopulationSize para análise
     sorted_df = filtered_df.sort_values("PopulationSize")
 
     results = []
@@ -88,22 +86,20 @@ def analyze_population_effect(df, params) -> pd.DataFrame:
 
 def analyze_generation_effect(df, params) -> pd.DataFrame:
     """
-    Analisa o impacto do número de gerações na fitness média, mantendo os outros parâmetros fixos.
+    Analyzes the impact of the number of generations on the quality of individuals,
+    keeping the other parameters fixed
 
-    @param df: DataFrame contendo os dados combinados para análise
-    @param params: Dicionário contendo os valores dos parâmetros fixos (ex.: {'PopulationSize': 100, 'CrossoverRate': 0.9, ...})
-    @return: Um DataFrame com os grupos comparados e as diferenças calculadas
+    @param df: DataFrame containing the combined data for analysis
+    @param params: Dictionary containing the values of the fixed parameters
+                   (ex.: {'Generations': 20, 'PopulationSize
     """
-    # Filtrar o DataFrame com base nos parâmetros fornecidos
     filtered_df = df
     for key, value in params.items():
         filtered_df = filtered_df[filtered_df[key] == value]
 
-    # Verificar se há dados suficientes para análise
     if filtered_df.empty:
         raise ValueError("Nenhum dado encontrado com os parâmetros fornecidos.")
 
-    # Ordenar por Generations para análise
     sorted_df = filtered_df.sort_values("Generations")
 
     results = []
@@ -137,22 +133,19 @@ def analyze_generation_effect(df, params) -> pd.DataFrame:
 
 def analyze_mutation_effect(df, params) -> pd.DataFrame:
     """
-    Analisa o impacto da taxa de mutação na qualidade dos filhos gerados, mantendo os outros parâmetros fixos.
+    Analyzes the impact of the mutation rate on the quality of individuals, keeping the other parameters fixed
 
-    @param df: DataFrame contendo os dados combinados para análise
-    @param params: Dicionário contendo os valores dos parâmetros fixos (ex.: {'Generations': 20, 'PopulationSize': 100, ...})
-    @return: Um DataFrame com os grupos comparados e as diferenças calculadas
+    @param df: DataFrame containing the combined data for analysis
+    @param params: Dictionary containing the values of the fixed parameters
+                   (ex.: {'Generations': 20, 'PopulationSize': 100, ...})
     """
-    # Filtrar o DataFrame com base nos parâmetros fornecidos
     filtered_df = df
     for key, value in params.items():
         filtered_df = filtered_df[filtered_df[key] == value]
 
-    # Verificar se há dados suficientes para análise
     if filtered_df.empty:
         raise ValueError("Nenhum dado encontrado com os parâmetros fornecidos.")
 
-    # Ordenar por MutationRate para análise
     sorted_df = filtered_df.sort_values("MutationRate")
 
     results = []
@@ -186,22 +179,18 @@ def analyze_mutation_effect(df, params) -> pd.DataFrame:
 
 def analyze_tournament_size_effect(df, params) -> pd.DataFrame:
     """
-    Analisa o impacto do tamanho do torneio na qualidade dos filhos gerados, mantendo os outros parâmetros fixos.
+    Analyzes the impact of the tournament size on the quality of individuals, keeping the other parameters fixed.
 
-    @param df: DataFrame contendo os dados combinados para análise
-    @param params: Dicionário contendo os valores dos parâmetros fixos (ex.: {'Generations': 20, 'PopulationSize': 100, ...})
-    @return: Um DataFrame com os grupos comparados e as diferenças calculadas
+    @param df: DataFrame containing the combined data for analysis.
+    @param params: Dictionary containing the values of the fixed parameters.
     """
-    # Filtrar o DataFrame com base nos parâmetros fornecidos
     filtered_df = df
     for key, value in params.items():
         filtered_df = filtered_df[filtered_df[key] == value]
 
-    # Verificar se há dados suficientes para análise
     if filtered_df.empty:
         raise ValueError("Nenhum dado encontrado com os parâmetros fornecidos.")
 
-    # Ordenar por TournamentSize para análise
     sorted_df = filtered_df.sort_values("TournamentSize")
 
     results = []
@@ -234,16 +223,13 @@ def analyze_tournament_size_effect(df, params) -> pd.DataFrame:
 
 def plot_top_parameter_sets(df, top_n=5):
     """
-    Gera um gráfico de barras com os top N conjuntos de parâmetros em termos de fitness média,
-    incluindo a melhor e a pior fitness para esses conjuntos de parâmetros.
+    Plots a bar chart with the top N parameter sets based on the mean fitness
 
-    @param df: DataFrame contendo os resultados da simulação com as colunas de parâmetros e fitness.
-    @param top_n: Número de conjuntos de parâmetros a serem exibidos (por padrão, 10).
-    @return: Um gráfico de barras mostrando os top N conjuntos de parâmetros com suas fitness médias, melhor e pior fitness.
+    @param df: DataFrame containing the combined data for analysis
+    @param top_n: Number of top parameter sets to plot
     """
-    # Seleciona as colunas relevantes para a análise
     relevant_columns = [
-        "ExperimentId",  # ID do experimento
+        "ExperimentId",
         "Generations",
         "CrossoverRate",
         "MutationRate",
@@ -254,7 +240,7 @@ def plot_top_parameter_sets(df, top_n=5):
         "WorstFitness"
     ]
 
-    # Agrupar os dados pelos parâmetros de interesse e calcular a fitness média
+    # Group by the relevant columns and calculate the mean fitness
     grouped = df[relevant_columns].groupby(
         [
             "Generations",
@@ -269,66 +255,47 @@ def plot_top_parameter_sets(df, top_n=5):
         WorstFitness=("WorstFitness", "min")
     ).reset_index()
 
-    # Garantir que o 'ExperimentId' seja incluído
     grouped["ExperimentId"] = df["ExperimentId"]
 
-    # Ordenar os resultados pela fitness média (em ordem decrescente)
     sorted_group = grouped.sort_values("MeanFitness", ascending=False)
 
-    # Seleciona os top N conjuntos de parâmetros
     top_n_group = sorted_group.head(top_n)
 
-    # Plotar o gráfico de barras
+    # Plots
     fig, ax = plt.subplots(figsize=(12, 6))
 
-    # Plot da fitness média
     ax.bar(top_n_group["ExperimentId"].astype(str), top_n_group["MeanFitness"], color='blue', label='Fitness Média')
 
-    # Plot da melhor fitness
     ax.plot(top_n_group["ExperimentId"].astype(str), top_n_group["BestFitness"], label='Melhor Fitness', color='green', marker='o', linestyle='--')
 
-    # Plot da pior fitness
     ax.plot(top_n_group["ExperimentId"].astype(str), top_n_group["WorstFitness"], label='Pior Fitness', color='red', marker='x', linestyle='--')
 
-    # Adicionar título e rótulos
     ax.set_title(f"Top {top_n} Conjuntos de Parâmetros - Fitness Média, Melhor e Pior Fitness", fontsize=14)
     ax.set_xlabel("ID do Conjunto de Parâmetros (ExperimentId)", fontsize=12)
     ax.set_ylabel("Fitness", fontsize=12)
 
-    # Adicionar a legenda
     ax.legend()
 
-    # Adicionar grid
     ax.grid(True, axis='y', linestyle='--', alpha=0.7)
 
     plt.xticks(rotation=0, fontsize=9)
 
-    # Ajustar layout
     plt.tight_layout()
 
-    # Exibir o gráfico
-
-    # Se desejar salvar o gráfico em um diretório específico
     plt.savefig(os.path.join(FIGS_FOLDER, f"top_{top_n}_parameter_sets{FIGS_FORMAT}"), dpi=FIGS_DPI)
 
 
 def get_extreme_fitness(df):
     """
-    Retorna a linha com a maior fitness absoluta e a menor fitness absoluta no treinamento.
+    Get the rows with the highest and lowest fitness values
 
-    @param df: DataFrame contendo os resultados da simulação, com a coluna 'MeanFitnessOnTraining'.
-    @return: Um dicionário contendo as linhas com a maior e a menor fitness.
+    @param df: DataFrame containing the combined data for analysis
     """
-    # Encontrar a linha com a maior fitness absoluta
     max_training_fitness_row = df.loc[df['BestFitnessOnTraining'].idxmax()]
-
-    # Encontrar a linha com a menor fitness absoluta
     min_training_fitness_row = df.loc[df['BestFitnessOnTraining'].idxmin()]
 
     max_test_fitness_row = df.loc[df['BestFitnessOnTest'].idxmax()]
-
     min_test_fitness_row = df.loc[df['BestFitnessOnTest'].idxmin()]
-
 
     return {
         "MaxTrainingFitness": max_training_fitness_row,

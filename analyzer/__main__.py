@@ -15,7 +15,7 @@ def main():
     os.makedirs(FIGS_FOLDER, exist_ok=True)
 
     # Process the experiment logs
-    #process_experiment_logs(LOG_FOLDER)
+    process_experiment_logs(LOG_FOLDER)
 
     # Load the data
     training_df, ranking_df = load_data()
@@ -23,8 +23,6 @@ def main():
     merged_df = pd.merge(training_df, ranking_df, on="ExperimentId")
 
     print_line()
-
-    # Analyze the population effect
 
     params = {
         "Generations": 80,

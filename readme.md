@@ -1,6 +1,5 @@
-# Genetic Algorithm Simulation
-
-Este projeto implementa uma simulação de algoritmo genético para encontra a melhor função de distância de um conjunto de testes. Ele possui dois módulos principais: `gp` e `analyzer`.
+# GENETIC_PROGRAMMING
+Este projeto implementa uma simulação de algoritmo genético para encontra a melhor função de distância de um conjunto de dados. Esse programa é o produto de um trabalho prático da disciplina de Computação Natural do [Departamento de Ciência da Computação da UFMG](https://dcc.ufmg.br).
 
 ## Módulo `gp`
 
